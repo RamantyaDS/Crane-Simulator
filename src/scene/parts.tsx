@@ -18,6 +18,7 @@ export const M = {
   zlGun: new THREE.MeshStandardMaterial({ color: '#4d535a', metalness: 0.45, roughness: 0.4 }),
   zlGunDark: new THREE.MeshStandardMaterial({ color: '#2c3035', metalness: 0.45, roughness: 0.48 }),
   zlSilver: new THREE.MeshStandardMaterial({ color: '#c8ccd0', metalness: 0.3, roughness: 0.4 }),
+  rod: new THREE.MeshStandardMaterial({ color: '#dfe3e6', metalness: 0.55, roughness: 0.22 }), // hard-chromed cylinder rod
   zlLuff: new THREE.MeshStandardMaterial({ color: '#b3b9bf', metalness: 0.35, roughness: 0.4 }),
   ballast: new THREE.MeshStandardMaterial({ color: '#33373b', metalness: 0.3, roughness: 0.65 }),
   hookYellow: new THREE.MeshStandardMaterial({ color: '#f0b20a', metalness: 0.3, roughness: 0.45 }),

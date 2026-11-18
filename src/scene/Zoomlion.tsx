@@ -490,7 +490,8 @@ function Counterweight() {
 // base + 6 telescopic sections; at full extension the last one ends at the head
 const SEC = Array.from({ length: 7 }, (_, i) => ({ w: 2.3 - i * 0.17, h: 2.9 - i * 0.21, len: i === 0 ? 20.5 : 19.2 }));
 const EXT = (SPEC.boomMax - SPEC.boomMin) / 6;
-const MAST = { z: 7, len: 16, splay: 0.52 }; // superlift masts on the base section
+// Y superlift masts on the base section: leaning towards the head (alpha from the boom axis) and splayed sideways (beta)
+const MAST = { z: 2.2, len: 20, w: 1.7, alpha: 0.95, splay: 0.7, strutZ: 9.5 };
 
 function Section({ i }: { i: number }) {
   const s = SEC[i];
@@ -598,6 +599,7 @@ function Boom() {
   const guys = useRef<THREE.Group[]>([]);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3() }), []);
   const masts = useRef<THREE.Group[]>([]);
+  const struts = useRef<THREE.Group[]>([]);
   const tips = useMemo(() => [new THREE.Vector3(), new THREE.Vector3()], []);
   const leads = useRef<THREE.Mesh[]>([]);
   const roller = useMemo(() => new THREE.Vector3(), []);
@@ -621,9 +623,17 @@ function Boom() {
     tmp.b.set(0, SEC[0].h / 2, -0.3);
     tips.forEach((t, k) => {
       const s = k ? -1 : 1;
-      dir.set(s * (0.07 + (Math.sin(MAST.splay) - 0.07) * up), 0.03 + (Math.cos(MAST.splay) - 0.03) * up, 1 - up).normalize();
+      const sa = Math.sin(MAST.alpha);
+      dir.set(s * (0.07 + (sa * Math.sin(MAST.splay) - 0.07) * up), 0.03 + (sa * Math.cos(MAST.splay) - 0.03) * up, 1 + (Math.cos(MAST.alpha) - 1) * up).normalize();
       masts.current[k]?.quaternion.setFromUnitVectors(fwd, dir);
       t.copy(base).addScaledVector(dir, MAST.len);
+      // erecting cylinder from the boom top to the mast
+      const st = struts.current[k];
+      if (st) {
+        st.visible = up > 0.05;
+        tmp.a.set(s * 0.5, SEC[0].h / 2, MAST.strutZ);
+        if (st.visible) placeRope(st, tmp.a, base.clone().addScaledVector(dir, MAST.len * 0.45));
+      }
       for (const [g, to] of [
         [guys.current[k * 2], tmp.c],
         [guys.current[k * 2 + 1], tmp.b],
@@ -685,7 +695,7 @@ function Boom() {
             <mesh position={[0, 0, 7.3]} rotation={[Math.PI / 2, 0, 0]} material={M.zlGunDark}>
               <cylinderGeometry args={[0.56, 0.56, 0.3, 24]} />
             </mesh>
-            <mesh ref={(el) => el && (rods.current[k] = el)} rotation={[Math.PI / 2, 0, 0]} material={M.chrome} castShadow>
+            <mesh ref={(el) => el && (rods.current[k] = el)} rotation={[Math.PI / 2, 0, 0]} material={M.rod} castShadow>
               <cylinderGeometry args={[0.34, 0.34, 1, 20]} />
             </mesh>
           </group>
@@ -711,8 +721,23 @@ function Boom() {
         {/* Y superlift: two lattice masts splayed sideways, their guy ropes */}
         {tips.map((_, k) => (
           <group key={k} position={[0, SEC[0].h / 2, MAST.z]} ref={(el) => el && (masts.current[k] = el)}>
-            <Lattice len={MAST.len} w={1.1} m={M.zlGreen} />
-            <Cyl r={0.35} l={0.3} axis="x" m={M.steel} position={[0, 0, MAST.len]} />
+            <Lattice len={MAST.len} w={MAST.w} m={M.zlGreen} />
+            {/* foot bracket and the head with its guy sheaves */}
+            <RB s={[MAST.w + 0.3, 0.9, 1.4]} r={0.06} m={M.zlGreenDark} position={[0, 0, 0.5]} />
+            <RB s={[MAST.w + 0.2, 1.0, 1.6]} r={0.06} m={M.zlGreen} position={[0, 0.1, MAST.len - 0.6]} />
+            {[-0.45, 0.45].map((x) => (
+              <Cyl key={x} r={0.55} l={0.18} axis="x" m={M.steel} position={[x, 0.3, MAST.len]} seg={20} />
+            ))}
+          </group>
+        ))}
+        {tips.map((_, k) => (
+          <group key={`s${k}`} ref={(el) => el && (struts.current[k] = el)}>
+            <mesh material={M.zlLuff}>
+              <cylinderGeometry args={[0.22, 0.22, 1, 14]} />
+            </mesh>
+            <mesh material={M.rod} position={[0, 0.25, 0]} scale={[0.75, 0.5, 0.75]}>
+              <cylinderGeometry args={[0.22, 0.22, 1, 14]} />
+            </mesh>
           </group>
         ))}
         {[0, 1, 2, 3].map((i) => (
