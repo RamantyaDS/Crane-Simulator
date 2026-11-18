@@ -1,6 +1,6 @@
 // The loads (the genset is the detailed Genset Simulator model) at their poses, their destination markings, and the
 // rigging drawn between the hook and the lifting points: wire or chain legs, the spreader bar, shackles.
-import { Text } from '@react-three/drei';
+import { RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -247,7 +247,41 @@ function BigTrafo({ d }: { d: LoadDef }) {
   );
 }
 
+/** Wind turbine nacelle on its transport frame: rounded white housing, hub flange at the front, cooler and met mast
+ *  on the roof, yaw bearing under the bedplate, four lifting lugs on the roof. */
+function Nacelle({ d }: { d: LoadDef }) {
+  const [sx, sy, sz] = d.size;
+  const h = sy - 0.5;
+  return (
+    <group>
+      {/* transport frame and yaw bearing */}
+      {[-1, 1].map((k) => (
+        <Box key={k} s={[0.5, 0.5, sz * 0.9]} m={M.greyLight} position={[k * sx * 0.3, 0.25, 0]} />
+      ))}
+      <Cyl r={1.8} l={0.3} m={M.steel} position={[0, 0.45, 0]} seg={32} />
+      {/* housing: main body and the tapered rear */}
+      <RoundedBox args={[sx * 0.82, h, sz]} radius={0.6} smoothness={3} position={[-sx * 0.05, 0.5 + h / 2, 0]} material={M.white} castShadow receiveShadow />
+      <RoundedBox args={[sx * 0.2, h * 0.86, sz * 0.86]} radius={0.5} smoothness={3} position={[sx * 0.4 - 0.4, 0.5 + h * 0.47, 0]} material={M.white} castShadow />
+      <Box s={[sx * 0.82, 0.12, 0.02]} m={M.greyLight} position={[-sx * 0.05, 0.5 + h * 0.35, sz / 2 + 0.01]} />
+      {/* main shaft flange at the front (rotor side) */}
+      <Cyl r={1.5} l={0.5} axis="x" m={M.greyLight} position={[sx * 0.5 + 0.1, 0.5 + h * 0.55, 0]} seg={32} />
+      <Cyl r={0.9} l={0.4} axis="x" m={M.steel} position={[sx * 0.5 + 0.4, 0.5 + h * 0.55, 0]} seg={24} />
+      {/* roof: cooler and the met mast */}
+      <Box s={[2.6, 0.9, sz * 0.8]} m={M.greyLight} position={[-sx * 0.36, 0.5 + h + 0.45, 0]} />
+      <Cyl r={0.06} l={2.2} m={M.greyLight} position={[-sx * 0.42, 0.5 + h + 1.1, 1.2]} />
+      <Cyl r={0.1} l={0.15} m={M.redLamp} position={[-sx * 0.42, 0.5 + h + 2.2, 1.2]} />
+      {d.points.map((p, i) => (
+        <Box key={i} s={[0.3, 0.35, 0.3]} m={M.hookYellow} position={[p[0], p[1] + 0.1, p[2]]} />
+      ))}
+      <Text position={[-sx * 0.05, 0.5 + h * 0.62, sz / 2 + 0.02]} fontSize={0.7} color="#2a5d8f" fontWeight={700}>
+        WTG 6 MW
+      </Text>
+    </group>
+  );
+}
+
 function LoadMesh({ d }: { d: LoadDef }) {
+  if (d.look === 'nacelle') return <Nacelle d={d} />;
   if (d.look === 'genset') return <Genset />;
   if (d.look === 'transformer') return <Transformer d={d} />;
   if (d.look === 'chiller') return <Chiller d={d} />;
@@ -296,7 +330,7 @@ function Destination() {
           <planeGeometry args={[w, h]} />
         </mesh>
       ))}
-      <Text position={[0, 2.2, 0]} fontSize={0.6} color="#ffd21a" outlineWidth={0.03} outlineColor="#222" anchorY="bottom">
+      <Text position={[0, d.y > 50 ? 6 : 2.2, 0]} fontSize={d.y > 50 ? 2.5 : 0.6} color="#ffd21a" outlineWidth={0.03} outlineColor="#222" anchorY="bottom">
         {`▼ ${d.label}`}
       </Text>
     </group>

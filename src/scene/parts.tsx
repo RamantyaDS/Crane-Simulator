@@ -10,6 +10,8 @@ export const M = {
   lbGrey: new THREE.MeshStandardMaterial({ color: '#8c9196', metalness: 0.35, roughness: 0.45 }),
   lbRed: new THREE.MeshStandardMaterial({ color: '#c3161c', metalness: 0.25, roughness: 0.42 }),
   lbBlack: new THREE.MeshStandardMaterial({ color: '#16171a', metalness: 0.45, roughness: 0.5 }),
+  // Zoomlion livery: white, green accents
+  zlGreen: new THREE.MeshStandardMaterial({ color: '#0f9d58', metalness: 0.25, roughness: 0.4 }),
   hookYellow: new THREE.MeshStandardMaterial({ color: '#f0b20a', metalness: 0.3, roughness: 0.45 }),
   rope: new THREE.MeshStandardMaterial({ color: '#3a3936', metalness: 0.7, roughness: 0.5 }),
   sling: new THREE.MeshStandardMaterial({ color: '#8a8f94', metalness: 0.8, roughness: 0.4 }),

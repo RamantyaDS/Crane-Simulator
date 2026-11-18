@@ -16,7 +16,7 @@ import { OTR_TYRE, Wheel } from './tyre';
 const DECK = SPEC.deckY;
 export const craneObj: { upper: THREE.Object3D | null; carrier: THREE.Object3D | null; head: THREE.Object3D | null } = { upper: null, carrier: null, head: null };
 
-function RB({ s, r = 0.04, m, ...p }: { s: [number, number, number]; r?: number; m: THREE.Material } & JSX.IntrinsicElements['group']) {
+export function RB({ s, r = 0.04, m, ...p }: { s: [number, number, number]; r?: number; m: THREE.Material } & JSX.IntrinsicElements['group']) {
   return (
     <group {...p}>
       <RoundedBox args={s} radius={Math.min(r, ...s.map((v) => v / 2 - 0.001))} smoothness={3} material={m} castShadow receiveShadow />
@@ -382,7 +382,7 @@ const SECTIONS = [
 ];
 
 /** Link-Belt boom section: flat top with chamfered corners, straight sides, a round "U" bottom; extruded along +z. */
-function sectionGeo(w: number, h: number, len: number) {
+export function sectionGeo(w: number, h: number, len: number) {
   const s = new THREE.Shape();
   const c = w * 0.12; // top chamfer
   const r = w / 2; // bottom radius
@@ -413,7 +413,8 @@ function latticeGeo(len: number, w: number) {
     g.translate(a.x, a.y, a.z);
     parts.push(g);
   };
-  for (const p of P) tube(new THREE.Vector3(p.x, p.y, 0), new THREE.Vector3(p.x, p.y, len), 0.04);
+  const k = Math.max(1, w / 0.62); // heavier members on a big lattice
+  for (const p of P) tube(new THREE.Vector3(p.x, p.y, 0), new THREE.Vector3(p.x, p.y, len), 0.04 * k);
   const n = Math.max(3, Math.round(len / (w * 1.1)));
   for (let i = 0; i < n; i++) {
     const z0 = (i * len) / n;
@@ -422,15 +423,15 @@ function latticeGeo(len: number, w: number) {
       const a = P[k];
       const b = P[(k + 1) % 3];
       const up = i % 2 === 0;
-      tube(new THREE.Vector3(a.x, a.y, up ? z0 : z1), new THREE.Vector3(b.x, b.y, up ? z1 : z0), 0.018);
+      tube(new THREE.Vector3(a.x, a.y, up ? z0 : z1), new THREE.Vector3(b.x, b.y, up ? z1 : z0), 0.018 * k);
     }
   }
   // end frames
-  for (const z of [0, len]) for (let k = 0; k < 3; k++) tube(new THREE.Vector3(P[k].x, P[k].y, z), new THREE.Vector3(P[(k + 1) % 3].x, P[(k + 1) % 3].y, z), 0.03);
+  for (const z of [0, len]) for (let j = 0; j < 3; j++) tube(new THREE.Vector3(P[j].x, P[j].y, z), new THREE.Vector3(P[(j + 1) % 3].x, P[(j + 1) % 3].y, z), 0.03 * k);
   return mergeAll(parts);
 }
 
-function Lattice({ len, w = 0.62, m = M.lbBlack }: { len: number; w?: number; m?: THREE.Material }) {
+export function Lattice({ len, w = 0.62, m = M.lbBlack }: { len: number; w?: number; m?: THREE.Material }) {
   const geo = useMemo(() => latticeGeo(len, w), [len, w]);
   return <mesh geometry={geo} material={m} castShadow />;
 }
@@ -505,7 +506,7 @@ function Section({ i }: { i: number }) {
 }
 
 /** Boom head: two side plates with a rounded nose, the sheave stack between them, the aux sheave and anemometer. */
-function Head() {
+export function Head() {
   const plate = useMemo(() => {
     const s = new THREE.Shape();
     s.moveTo(-0.9, -0.45);
@@ -678,7 +679,7 @@ export function blockWorld(out: THREE.Vector3) {
   return out.set(t.x + dx * k, t.y + dy * k, t.z + dz * k);
 }
 
-function HookBlock() {
+export function HookBlock() {
   const ref = useRef<THREE.Group>(null);
   const kinds = useRef<THREE.Group[]>([]);
   const p = useMemo(() => new THREE.Vector3(), []);
@@ -687,11 +688,11 @@ function HookBlock() {
     const g = ref.current!;
     g.position.copy(p);
     g.rotation.y = cr.heading + cr.slew;
-    const blk = cr.fly > 0 ? 'ball' : cr.block;
+    const blk = cr.fly > 0 && SPEC.flyBall ? 'ball' : cr.block;
     kinds.current.forEach((k) => k && (k.visible = k.userData.id === blk || (k.userData.id === 'block' && blk !== 'ball')));
     const b = BLOCKS.find((x) => x.id === blk)!;
     const big = kinds.current.find((k) => k?.userData.id === 'block');
-    if (big) big.scale.setScalar(0.6 + 0.08 * b.sheaves);
+    if (big) big.scale.setScalar(SPEC.flyBall ? 0.6 + 0.08 * b.sheaves : 1.4 + 0.03 * b.sheaves);
   });
   return (
     <group ref={ref}>
@@ -703,7 +704,7 @@ function HookBlock() {
           <torusGeometry args={[0.18, 0.06, 10, 24, Math.PI * 1.4]} />
         </mesh>
       </group>
-      <group ref={(el) => el && (kinds.current[1] = el)} userData={{ id: 'ball' }}>
+      <group ref={(el) => el && (kinds.current[1] = el)} userData={{ id: 'ball' }} scale={SPEC.flyBall ? 1 : 2.2}>
         <mesh material={M.hookYellow} position={[0, 0, 0]}>
           <sphereGeometry args={[0.32, 20, 14]} />
         </mesh>
@@ -715,7 +716,7 @@ function HookBlock() {
   );
 }
 
-function Ropes() {
+export function Ropes() {
   const tip = useMemo(() => new THREE.Vector3(), []);
   const blk = useMemo(() => new THREE.Vector3(), []);
   const parts = Array.from({ length: 15 }, (_, i) => i);
@@ -725,13 +726,13 @@ function Ropes() {
         <Rope
           key={i}
           get={(a, b) => {
-            const n = cr.fly > 0 ? 1 : cr.parts;
+            const n = Math.min(15, cr.fly > 0 && SPEC.flyBall ? 1 : cr.parts);
             if (i >= n) return false;
             const t = tipWorld(cr);
             tip.set(t.x, t.y, t.z);
             blockWorld(blk);
             // spread the parts across the sheave width, across the boom
-            const off = (i - (n - 1) / 2) * 0.07;
+            const off = (i - (n - 1) / 2) * (SPEC.flyBall ? 0.07 : 0.16);
             const s = Math.cos(cr.heading + cr.slew);
             const k = -Math.sin(cr.heading + cr.slew);
             a.set(tip.x + s * off, tip.y - 0.15, tip.z + k * off);

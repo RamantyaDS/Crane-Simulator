@@ -889,3 +889,21 @@ button.on {
   font-size: 11px;
   color: var(--dim);
 }
+
+.models {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+.models button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+}
+.models button span {
+  font-size: 0.8em;
+  opacity: 0.75;
+}

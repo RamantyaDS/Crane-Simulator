@@ -52,6 +52,7 @@ export function onEvent(f: (e: string) => void) {
 /** Advances the simulation with fixed 10 ms steps. */
 export function advance(dt: number) {
   const total = Math.min(dt, 0.1);
+  if (!(total > 0)) return; // a zero frame time would divide by zero in the hook velocities
   const n = Math.max(1, Math.ceil(total / 0.01));
   for (let i = 0; i < n; i++) step(cr, total / n);
   if (cr.events.length) for (const e of cr.events.splice(0)) for (const f of listeners) f(e);

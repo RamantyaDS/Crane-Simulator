@@ -3,6 +3,7 @@
 // a 20 kV overhead line along the east edge. The loads wait in the laydown yard; each has a marked destination.
 // World axes: x east, z north, y up, metres.
 import { inside, type Obb } from './geom';
+import type { ModelId } from './spec';
 
 export type Ground = 'gravel' | 'concrete';
 /** Allowable ground bearing pressure (kPa) of each surface. */
@@ -19,6 +20,8 @@ export const ANNEX = { x0: 40, x1: 54, z0: 12, z1: 26, h: 8 };
 export const GENHOUSE = { x: -24, z: 24, w: 9, d: 5.5, h: 4 };
 export const EXCAVATION = { x0: -12, x1: 0, z0: -42, z1: -35, depth: 3 };
 export const POWERLINE = { x: 66, y: 11, z0: -60, z1: 60 }; // three 20 kV conductors at y 11, x 65.2/66/66.8
+/** Wind turbine under construction in the south-west corner: tower up, nacelle waiting (the Zoomlion's lift). */
+export const TOWER = { x: -62, z: -20, h: 148.5, rBase: 2.6, rTop: 1.9 };
 export const MIN_APPROACH = 3.05; // m, ≤ 50 kV (ASME B30.5 / OSHA 1926.1408 table A)
 
 /** Columns of the factory frame: 8 m bays. */
@@ -30,6 +33,7 @@ for (let z = FACTORY.z0 + 10; z < FACTORY.z1; z += 10) for (const x of [FACTORY.
 export const SURFACES: { id: string; b: Obb; y: number }[] = [
   { id: 'mezz', b: box('mezz', (FACTORY.mezz.x0 + FACTORY.mezz.x1) / 2, (FACTORY.mezz.z0 + FACTORY.mezz.z1) / 2, FACTORY.mezz.x1 - FACTORY.mezz.x0, FACTORY.mezz.z1 - FACTORY.mezz.z0, 0, FACTORY.mezz.y), y: FACTORY.mezz.y },
   { id: 'annex', b: box('annex', (ANNEX.x0 + ANNEX.x1) / 2, (ANNEX.z0 + ANNEX.z1) / 2, ANNEX.x1 - ANNEX.x0, ANNEX.z1 - ANNEX.z0, 0, ANNEX.h), y: ANNEX.h },
+  { id: 'tower', b: box('tower', TOWER.x, TOWER.z, TOWER.rTop * 2, TOWER.rTop * 2, 0, TOWER.h), y: TOWER.h },
 ];
 
 export const OBSTACLES: Obb[] = [
@@ -54,6 +58,7 @@ export const OBSTACLES: Obb[] = [
   box('fenceW', -70, 0, 0.3, 124, 0, 2.2),
   box('fenceN', 0, 62, 140, 0.3, 0, 2.2),
   ...[-50, -25, 0, 25, 50].map((z, i) => box(`pole${i}`, POWERLINE.x, z, 0.5, 0.5, 0, POWERLINE.y + 1)),
+  box('tower', TOWER.x, TOWER.z, TOWER.rBase * 2, TOWER.rBase * 2, 0, TOWER.h - 0.1),
 ];
 
 export function groundAt(x: number, z: number): Ground {
@@ -83,7 +88,9 @@ export interface LoadDef {
   start: { x: number; z: number; yaw: number; y: number };
   dest: { x: number; z: number; yaw: number; y: number; label: string };
   note: string;
-  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo';
+  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo' | 'nacelle';
+  only?: ModelId; // a load for one crane only
+  mount?: boolean; // set on a yaw bearing: any heading, resting on its centre
 }
 
 export const FOUNDATIONS: { id: string; b: Obb; y: number }[] = [];
@@ -217,12 +224,35 @@ export const LOADS: LoadDef[] = [
     note: 'Trafo gardu induk tanpa minyak (transport weight 100 t). Dengan hook block 7 sheave dan spreader berat 4 m total ±104 t: hanya boleh di radius ≤ 3,5 m (chart 106,6 t), CW 26,7 t, outrigger penuh. Posisikan crane di titik "lift plan".',
     look: 'bigtrafo',
   },
+  {
+    id: 'nacelle',
+    name: 'Nacelle turbin angin 6 MW (BEBAN MAKSIMAL)',
+    kg: 150000,
+    size: [14, 4.2, 4.5],
+    cg: [-0.6, 1.9, 0],
+    points: [
+      [-4.5, 4.2, 1.6],
+      [4.5, 4.2, 1.6],
+      [4.5, 4.2, -1.6],
+      [-4.5, 4.2, -1.6],
+    ],
+    pairs: [[0, 1, 2, 3]],
+    start: { x: -46, z: -42, yaw: 0, y: 0.3 },
+    dest: { x: TOWER.x, z: TOWER.z, yaw: 0, y: TOWER.h, label: `Puncak menara (${TOWER.h.toString().replace('.', ',')} m)` },
+    note: 'Nacelle 150 t ke atas menara 148,5 m. Pakai boom utama penuh + boom wind, hook block 1 600 t, spreader 9 m. Posisikan crane di titik "lift plan" dekat menara; radius ±32 m.',
+    look: 'nacelle',
+    only: 'zoomlion',
+    mount: true,
+  },
 ];
 
 /** Where the lift plan puts the crane for the main transformer (between its skids and its pad). */
 export const PRESS_SPOT = { x: -14, z: 2, heading: 0 };
+/** Where the lift plan puts the Zoomlion for the nacelle. */
+export const TOWER_SPOT = { x: -30, z: -20, heading: 0 };
 /** Where the crane starts: by the gate. */
 export const START = { x: -30, z: -50, heading: Math.PI / 2 };
+export const START_ZL = { x: -30, z: -49, heading: 0 };
 
 // ---------- rigging ----------
 export interface RigItem {
@@ -248,4 +278,5 @@ export const RIGGING: RigItem[] = [
   { id: 'sp9', name: 'Spreader bar 9 m (20 t) + sling 6 m', kind: 'spreader', legLen: 6, wll: 11200, span: 9, spreaderWll: 20000, kg: 1150 },
   { id: 'sp3h', name: 'Spreader berat 3 m (150 t) + sling 4 m', kind: 'spreader', legLen: 4, wll: 60000, span: 3, spreaderWll: 150000, kg: 2200 },
   { id: 'sp4h', name: 'Spreader berat 4 m (150 t) + sling 4,5 m', kind: 'spreader', legLen: 4.5, wll: 63000, span: 4, spreaderWll: 150000, kg: 2350 },
+  { id: 'sp9h', name: 'Spreader nacelle 9 m (200 t) + sling 8 m', kind: 'spreader', legLen: 8, wll: 100000, span: 9, spreaderWll: 200000, kg: 6500 },
 ];

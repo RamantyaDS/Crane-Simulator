@@ -13,7 +13,7 @@
 import { rated, stopIndex, type Rating, type Support } from './chart';
 import { clamp, inside, overlaps, toLocal, toWorld, type Obb } from './geom';
 import { plan, type RigPlan } from './rigging';
-import { BEARING, LOADS, MIN_APPROACH, OBSTACLES, POWERLINE, RIGGING, START, groundAt, inExcavation, surfaceAt, type LoadDef } from './site';
+import { BEARING, LOADS, MIN_APPROACH, OBSTACLES, POWERLINE, RIGGING, START, START_ZL, groundAt, inExcavation, surfaceAt, type LoadDef } from './site';
 import { BLOCKS, FLY, SPEC, maxParts, maxTorque, type BlockId } from './spec';
 
 const G = 9.81;
@@ -137,14 +137,16 @@ export interface Crane {
 }
 
 export function createLoads(): LoadState[] {
-  return LOADS.map((def) => ({ def, x: def.start.x, y: def.start.y, z: def.start.z, yaw: def.start.yaw, tilt: 0, state: 'rest', placed: false, damage: 0 }));
+  return LOADS.filter((d) => !d.only || d.only === SPEC.model).map((def) => ({ def, x: def.start.x, y: def.start.y, z: def.start.z, yaw: def.start.yaw, tilt: 0, state: 'rest', placed: false, damage: 0 }));
 }
 
 export function create(): Crane {
+  const zl = SPEC.model === 'zoomlion';
+  const st = zl ? START_ZL : START;
   const c: Crane = {
-    x: START.x,
-    z: START.z,
-    heading: START.heading,
+    x: st.x,
+    z: st.z,
+    heading: st.heading,
     v: 0,
     steer: 0,
     steerInput: 0,
@@ -179,14 +181,14 @@ export function create(): Crane {
     swingBrake: 0,
     swingLock: true,
     swingPark: true,
-    cw: 15.9,
-    cwTarget: 15.9,
+    cw: SPEC.counterweights[zl ? 2 : 1],
+    cwTarget: SPEC.counterweights[zl ? 2 : 1],
     cwT: 0,
     angle: 0,
     length: SPEC.boomMin,
     fly: 0,
     flyTarget: 0,
-    flyOffset: 2,
+    flyOffset: FLY.offsets[0],
     flyT: 0,
     pinTarget: 0,
     swingLever: 0,
@@ -195,8 +197,8 @@ export function create(): Crane {
     hoistLever: 0,
     tagLever: 0,
     highSpeed: false,
-    block: 'b4',
-    parts: 4,
+    block: zl ? 'b5' : 'b4',
+    parts: zl ? 8 : 4,
     drum: 0,
     hook: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 },
     ropeLen: 2,
@@ -241,8 +243,8 @@ export function create(): Crane {
 
 // ---------- geometry ----------
 
-const blockOf = (c: Crane) => (c.fly > 0 ? BLOCKS[0] : BLOCKS.find((b) => b.id === c.block)!);
-const partsOf = (c: Crane) => (c.fly > 0 ? 1 : c.parts);
+const blockOf = (c: Crane) => (c.fly > 0 && SPEC.flyBall ? BLOCKS[0] : BLOCKS.find((b) => b.id === c.block)!);
+const partsOf = (c: Crane) => (c.fly > 0 && SPEC.flyBall ? 1 : c.parts);
 
 /** Rope run from the drum along the boom (and fly) to the head, used for the hook's hanging length. */
 function ropeAlong(c: Crane) {
@@ -254,8 +256,8 @@ export const hangLen = (c: Crane) => Math.max(0.3, (c.drum - ropeAlong(c)) / par
 
 /** Boom deflection at the head (m, downward from the straight line), from the hook load and the boom's own weight. */
 export function deflection(c: Crane) {
-  const k = (c.length + c.fly) / 59.5;
-  return (0.018 * (c.hookKg / 1000) + 0.05 * boomMass(c)) * k * k * k * 1.1 * Math.cos(c.angle);
+  const k = (c.length + c.fly) / SPEC.deflRef;
+  return (0.018 * (c.hookKg / 1000) + 0.05 * boomMass(c)) * k * k * k * 1.1 * Math.cos(c.angle) * SPEC.deflK;
 }
 
 const boomMass = (c: Crane) => SPEC.mass.boomBase + SPEC.mass.boomPerM * (c.length - SPEC.boomMin) + SPEC.mass.fly[FLY.lengths.indexOf(c.fly)];
@@ -547,8 +549,9 @@ function drive(c: Crane, dt: number) {
   if (!c.onTyres) c.v = 0;
   if (Math.abs(c.v) < 1e-4) return;
 
-  // kinematics per steer mode (front axle at +2.45, rear group centre at −1.75)
-  const base = SPEC.axles[0] - (SPEC.axles[1] + SPEC.axles[2]) / 2;
+  // kinematics per steer mode: front axle (group) to the centre of the rear axles
+  const rearAx = SPEC.axles.slice(SPEC.steerAxles);
+  const base = SPEC.axles[0] - rearAx.reduce((a, z) => a + z, 0) / rearAx.length;
   let yaw = 0;
   let crab = 0;
   if (c.steerMode === 'front') yaw = (c.v * Math.tan(c.steer)) / base;
@@ -589,8 +592,9 @@ function craneHits(c: Crane): string | null {
     const [wx, wz] = toWorld(c.x, c.z, c.heading, p.x, p.z);
     boxes.push({ id, x: wx, z: wz, hx: Math.abs(x1 - x0) / 2, hz: Math.abs(z1 - z0) / 2, yaw: c.heading + (frame === 'u' ? c.slew : 0), y0: y0 + c.lift, y1: y1 + c.lift });
   };
-  add(-SPEC.width / 2, -SPEC.carrierLen / 2, SPEC.width / 2, SPEC.carrierLen / 2, 0.3, 3.0, 'c', 'carrier');
-  add(-1.4, SPEC.cwArm - 0.9, 1.4, SPEC.cwArm + 0.9, 1.6, 3.6, 'u', 'counterweight');
+  add(-SPEC.width / 2, -SPEC.carrierLen / 2, SPEC.width / 2, SPEC.carrierLen / 2, 0.3, SPEC.deckY + 1.2, 'c', 'carrier');
+  const w = SPEC.cwBox;
+  add(-w.x, SPEC.cwArm - w.z, w.x, SPEC.cwArm + w.z, w.y0, w.y1, 'u', 'counterweight');
   for (const b of OBSTACLES) for (const m of boxes) if (overlaps(m, b)) return nameOf(b.id);
   // the boom: points along it
   for (const p of boomPoints(c)) for (const b of OBSTACLES) if (inside(b, p.x, p.z, 0.4) && p.y > b.y0 && p.y < b.y1 + 0.4) return nameOf(b.id);
@@ -674,7 +678,7 @@ function upper(c: Crane, dt: number) {
     const before = c.length;
     c.length = clamp(c.length + tv * SPEC.teleRate * f * dt, SPEC.boomMin, SPEC.boomMax);
     // snap onto a pin position when the lever is let go close to one
-    if (c.length !== before && c.fly > 0 && c.length < SPEC.boomMax - 0.01 && !c.msg) say(c, 'Fly hanya diizinkan dengan boom penuh 59,5 m.');
+    if (c.length !== before && c.fly > 0 && c.length < SPEC.boomMax - 0.01 && !c.msg) say(c, `${FLY.label} hanya diizinkan dengan boom penuh ${SPEC.boomMax.toString().replace('.', ',')} m.`);
     c.pinTarget = 0;
   } else if (c.pinTarget > 0 && on) {
     // "lock boom": the telescope runs to the chosen pin position by itself and latches there
@@ -913,7 +917,8 @@ function settle(c: Crane, L: LoadState) {
   const [sx, , sz] = L.def.size;
   const hs: number[] = [];
   for (const fx of [-0.5, 0.5]) for (const fz of [-0.5, 0.5]) hs.push(surfaceAt(...toWorld(L.x, L.z, L.yaw, fx * sx * 0.9, fz * sz * 0.9)));
-  if (Math.max(...hs) - Math.min(...hs) > 0.3) {
+  const uneven = L.def.mount ? surfaceAt(L.x, L.z) < L.y - 0.3 : Math.max(...hs) - Math.min(...hs) > 0.3;
+  if (uneven) {
     L.state = 'fallen';
     L.damage = 100;
     c.attached = -1;
@@ -926,7 +931,7 @@ function settle(c: Crane, L: LoadState) {
   const dsx = L.def.dest;
   const dist = Math.hypot(L.x - dsx.x, L.z - dsx.z);
   const dyaw = Math.abs(Math.atan2(Math.sin(2 * (L.yaw - dsx.yaw)), Math.cos(2 * (L.yaw - dsx.yaw)))) / 2;
-  if (dist < 0.6 && dyaw < (8 * Math.PI) / 180 && Math.abs(L.y - dsx.y) < 0.25) {
+  if (dist < 0.6 && (dyaw < (8 * Math.PI) / 180 || L.def.mount) && Math.abs(L.y - dsx.y) < 0.25) {
     L.placed = true;
     c.events.push('placed');
     say(c, `${L.def.name} terpasang di ${dsx.label}. Meleset ${Math.round(dist * 100)} cm, ${((dyaw * 180) / Math.PI).toFixed(1)}°.`);
@@ -943,6 +948,11 @@ function rcl(c: Crane) {
   let kg = Math.min(chart.kg, ropeKg, blk.rating);
   let note = chart.note;
   if (kg < chart.kg) note += kg === ropeKg ? ` · dibatasi tali ${partsOf(c)} jalur` : ' · dibatasi hook block';
+  // estimated chart: never above 80 % of the load that would tip the crane now (a real chart is built that way)
+  if (chart.estimated && SPEC.model === 'zoomlion' && c.tipLoadKg > 0 && c.tipLoadKg < 999999 && 0.8 * c.tipLoadKg < kg) {
+    kg = Math.round(0.8 * c.tipLoadKg);
+    note += ' · dibatasi stabilitas';
+  }
   // out of level by more than 1 %: the chart no longer applies
   const level = Math.hypot(Math.tan(c.pitch), Math.tan(c.roll)) * 100;
   if (!c.onTyres && level > 1) {
@@ -968,10 +978,11 @@ export function supports(c: Crane): [number, number][] {
     return [P[0], P[2], P[3], P[1]]; // FL, RL, RR, FR around
   }
   const x = SPEC.track / 2 + SPEC.tyreW / 2;
+  const zr = SPEC.axles[SPEC.axles.length - 1];
   return [
     [x, SPEC.axles[0]],
-    [x, SPEC.axles[2]],
-    [-x, SPEC.axles[2]],
+    [x, zr],
+    [-x, zr],
     [-x, SPEC.axles[0]],
   ];
 }
@@ -1057,7 +1068,8 @@ function stability(c: Crane, dt: number) {
     const sz = P.reduce((a, p) => a + p[1] * p[1], 0);
     const cgx = M.reduce((a, p) => a + p.kg * p.x, 0);
     const cgz = M.reduce((a, p) => a + p.kg * p.z, 0);
-    const area = c.mats ? 2.25 : Math.PI * (SPEC.outrigger.pad / 2) ** 2;
+    const padArea = Math.PI * (SPEC.outrigger.pad / 2) ** 2;
+    const area = c.mats ? Math.max(2.25, padArea * 2.5) : padArea;
     for (let i = 0; i < 4; i++) {
       const R = Math.max(0, total / 4 + (cgx * P[i][0]) / sx + (cgz * P[i][1]) / sz);
       c.padLoad[i] = R;

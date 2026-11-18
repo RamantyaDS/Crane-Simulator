@@ -6,13 +6,28 @@ import { chartTable, stopIndex } from '../sim/chart';
 import { attachRig, detachRig, hangLen, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
 import { plan } from '../sim/rigging';
 import { RIGGING } from '../sim/site';
-import { BLOCKS, FLY, SPEC, maxParts } from '../sim/spec';
+import { BLOCKS, FLY, MODELS, SPEC, chooseModel, maxParts } from '../sim/spec';
 import { ensureAudio, setSound, soundOn, soundStatus } from '../sound';
 import { cr, resetAll, useUI, type CamMode } from '../store';
 
 const CAM_LABEL: Record<CamMode, string> = { orbit: 'Orbit', cab: 'Kabin', hook: 'Kamera hook', rigger: 'Rigger', top: 'Atas' };
 const fmt = (n: number, d = 1) => n.toFixed(d).replace('.', ',');
 const t = (kg: number) => `${fmt(kg / 1000)} t`;
+const ZL = SPEC.model === 'zoomlion';
+
+/** Crane choice: the page reloads with the other model (the run restarts). */
+function ModelPicker() {
+  return (
+    <div className="models">
+      {MODELS.map((m) => (
+        <button key={m.id} className={SPEC.model === m.id ? 'on' : ''} onClick={() => SPEC.model !== m.id && chooseModel(m.id)}>
+          <b>{m.name}</b>
+          <span>{m.note}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function Tabs({ tab, set }: { tab: string; set: (t: string) => void }) {
   const items: [string, string][] = [
@@ -187,11 +202,11 @@ function SetupPanel() {
           Rem parkir swing {cr.swingPark ? 'ON' : 'off'}
         </button>
       </div>
-      <h3>Fly jib</h3>
+      <h3>{FLY.label}</h3>
       <div className="row">
         {FLY.lengths.map((l) => (
           <button key={l} className={cr.flyTarget === l ? 'on' : ''} onClick={() => setFly(cr, l)}>
-            {l === 0 ? 'Disimpan' : `${fmt(l)} m`}
+            {l === 0 ? (ZL ? 'Tanpa' : 'Disimpan') : `${fmt(l, 0)} m`}
           </button>
         ))}
       </div>
@@ -202,7 +217,8 @@ function SetupPanel() {
           </button>
         ))}
       </div>
-      {cr.flyTarget !== cr.fly && <p className="dim">Memasang/melepas fly… {Math.round(cr.flyT * 100)}%</p>}
+      {cr.flyTarget !== cr.fly && <p className="dim">Memasang/melepas {FLY.label.toLowerCase()}… {Math.round(cr.flyT * 100)}%</p>}
+      {ZL && <p className="dim">Boom wind dirakit dengan boom utama ditarik penuh dan rendah, lalu boom utama di-telescope penuh {fmt(SPEC.boomMax)} m untuk bekerja.</p>}
       <h3>Hook block & reeving</h3>
       <select value={cr.block} onChange={(e) => setBlock(cr, e.target.value as typeof cr.block, Math.min(cr.parts, maxParts(BLOCKS.find((b) => b.id === e.target.value)!.sheaves)))}>
         {BLOCKS.map((b) => (
@@ -298,6 +314,10 @@ function ViewPanel() {
           </button>
         ))}
       </div>
+      <h3>Model crane</h3>
+      <ModelPicker />
+      <p className="dim">Ganti model memuat ulang halaman dan memulai dari awal.</p>
+      {SPEC.fastNote && <p className="dim">{SPEC.fastNote}</p>}
       <h3>Grafis</h3>
       <div className="row">
         <button className={!FULL ? 'on' : ''} onClick={() => FULL && setQuality(false)}>
@@ -363,7 +383,7 @@ function Rcl() {
   return (
     <section className="rcl" aria-label="RCL">
       <header>
-        <b>RCL · Link-Belt Pulse</b>
+        <b>{ZL ? 'RCL · chart perkiraan' : 'RCL · Link-Belt Pulse'}</b>
         <span className={cr.engine === 'running' ? 'ok' : ''}>{cr.engine === 'running' ? `${Math.round(cr.rpm)} rpm` : 'mesin mati'}</span>
       </header>
       <div className="big">
@@ -399,7 +419,7 @@ function Rcl() {
           Tinggi ujung <b>{fmt(tip.y)} m</b>
         </span>
         <span>
-          Tali {cr.fly > 0 ? 1 : cr.parts} jalur · <b>{fmt(hangLen(cr))} m</b>
+          Tali {cr.fly > 0 && SPEC.flyBall ? 1 : cr.parts} jalur · <b>{fmt(hangLen(cr))} m</b>
         </span>
         <span>
           Angin <b>{fmt(cr.wind)} m/s</b>
@@ -481,7 +501,11 @@ function ChartView() {
       <button className="x" onClick={() => ui.set({ chart: false })} aria-label="Tutup">
         ×
       </button>
-      <h3>Load chart RTC-80160 II · CW {fmt(cr.cw > 20 ? 26.7 : 15.9)} t · outrigger penuh 360° · 85% (kg)</h3>
+      {ZL ? (
+        <h3>Chart PERKIRAAN ZAT40000H763 · boom utama · CW {fmt(cr.cw, 0)} t · superlift · outrigger 16 × 16 m (kg) · dari momen beban 8 000 t·m, bukan chart resmi</h3>
+      ) : (
+        <h3>Load chart RTC-80160 II · CW {fmt(cr.cw > 20 ? 26.7 : 15.9)} t · outrigger penuh 360° · 85% (kg)</h3>
+      )}
       <div className="tablewrap">
         <table>
           <thead>
@@ -508,7 +532,11 @@ function ChartView() {
           </tbody>
         </table>
       </div>
-      <p className="credit">Sumber: Link-Belt Technical Data 5825 (RTC-80160 Series II), tabel 85% metrik. Radius di antara baris memakai baris yang lebih besar.</p>
+      <p className="credit">
+        {ZL
+          ? 'Perkiraan: momen beban maksimum Zoomlion (8 000 t·m boom dasar, 6 300 t·m boom panjang + boom wind) dibagi radius, dibatasi kekuatan boom; RCL juga membatasi 80% beban guling. Bukan chart resmi.'
+          : 'Sumber: Link-Belt Technical Data 5825 (RTC-80160 Series II), tabel 85% metrik. Radius di antara baris memakai baris yang lebih besar.'}
+      </p>
     </div>
   );
 }
@@ -551,7 +579,7 @@ function Help() {
       <h3>Gamepad</h3>
       {list(PAD_KEYS)}
       <p className="credit">
-        Data: Link-Belt Technical Data 5825 RTC-80160 Series II (load chart, mesin, winch, outrigger). Suara: rekaman diesel John Deere 5820 dan pompa hidrolik Komatsu 941 oleh
+        Data: Link-Belt Technical Data 5825 RTC-80160 Series II (load chart, mesin, winch, outrigger); halaman produk Zoomlion ZAT40000H763 (dimensi, boom, kecepatan, momen beban). Suara: rekaman diesel John Deere 5820 dan pompa hidrolik Komatsu 941 oleh
         Work With Sounds / Werstas (CC BY 4.0), start mesin bus diesel oleh Evan0512 (CC BY-SA 4.0), Wikimedia Commons; mesin Cummins dan alarm disintesis.
       </p>
     </div>
@@ -658,8 +686,10 @@ export function App() {
           {panel ? '◀' : '☰'}
         </button>
         <div>
-          <h1>Link-Belt RTC-80160 II</h1>
-          <p>Simulator rough terrain crane 145 t · proyek pabrik · {mode === 'drive' ? 'mode jalan' : 'mode crane'}</p>
+          <h1>{SPEC.name}</h1>
+          <p>
+            Simulator {ZL ? 'all-terrain crane 4 000 t' : 'rough terrain crane 145 t'} · proyek pabrik · {mode === 'drive' ? 'mode jalan' : 'mode crane'}
+          </p>
         </div>
       </header>
       <Panel />
@@ -673,11 +703,19 @@ export function App() {
       {!started && (
         <div className="intro">
           <div>
-            <h1>Simulator Crane Link-Belt RTC-80160 Series II</h1>
-            <p>
-              Rough terrain crane 145 ton (Cummins 345 hp, boom 6 seksi pin & latch 12,9–59,5 m, fly 9,4/16,8 m) di proyek pabrik. Pasang genset, trafo, chiller, pelat
-              precast, balok baja, tangki, sampai trafo daya 100 ton yang memakai 98% kapasitas, memakai load chart resmi Link-Belt.
-            </p>
+            <h1>Simulator Crane Traknus</h1>
+            <ModelPicker />
+            {ZL ? (
+              <p>
+                All-terrain crane 4 000 ton, 10 gandar, boom utama 7 seksi 19,8–95,4 m, superlift Y, boom wind 51–111 m (tinggi hook sampai ±206 m). Beban terbesar: nacelle
+                turbin angin 150 t ke puncak menara 148,5 m. Zoomlion tidak menerbitkan load chart: kapasitas di sini PERKIRAAN dari momen beban yang dipublikasikan.
+              </p>
+            ) : (
+              <p>
+                Rough terrain crane 145 ton (Cummins 345 hp, boom 6 seksi pin & latch 12,9–59,5 m, fly 9,4/16,8 m) di proyek pabrik. Pasang genset, trafo, chiller, pelat
+                precast, balok baja, tangki, sampai trafo daya 100 ton yang memakai 98% kapasitas, memakai load chart resmi Link-Belt.
+              </p>
+            )}
             <ol>
               <li>Jalankan crane ke dekat beban dan tujuannya (mode jalan, empat mode setir).</li>
               <li>Outrigger penuh, matras bila perlu, auto-level. Pilih counterweight, hook block dan jalur tali.</li>

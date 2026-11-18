@@ -4,7 +4,8 @@
 import { Text } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GENHOUSE, LOADS, POWERLINE, PRESS_SPOT } from '../sim/site';
+import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GENHOUSE, LOADS, POWERLINE, PRESS_SPOT, TOWER, TOWER_SPOT } from '../sim/site';
+import { SPEC } from '../sim/spec';
 import { Bake } from './Bake';
 import { Box, Cyl, M, useCanvasTexture } from './parts';
 
@@ -53,6 +54,13 @@ function Ground() {
         <planeGeometry args={[420, 420]} />
         <meshStandardMaterial map={gravel} roughness={0.95} />
       </mesh>
+      {/* fields beyond the yard: the 4 000 t crane's camera sees much farther */}
+      {SPEC.model === 'zoomlion' && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
+          <planeGeometry args={[2400, 2400]} />
+          <meshStandardMaterial color="#8a8f6a" roughness={1} />
+        </mesh>
+      )}
       {/* the slab inside the factory */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(FACTORY.x0 + FACTORY.x1) / 2, 0.02, (FACTORY.z0 + FACTORY.z1) / 2]} receiveShadow material={S.slab}>
         <planeGeometry args={[FACTORY.x1 - FACTORY.x0, FACTORY.z1 - FACTORY.z0]} />
@@ -194,7 +202,7 @@ function Foundations() {
         </mesh>
       ))}
       {/* timbers under the loads waiting in the laydown yard */}
-      {LOADS.filter((l) => l.start.y > 0.05).map((l) => {
+      {LOADS.filter((l) => l.start.y > 0.05 && (!l.only || l.only === SPEC.model)).map((l) => {
         const [sx, , sz] = l.size;
         return [-0.4, 0, 0.4].map((k) => {
           const c = Math.cos(l.start.yaw);
@@ -229,6 +237,65 @@ function LiftPlan() {
       </mesh>
       <Text position={[0, 0.02, -4.4]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.45} color="#ff6a00">
         LIFT PLAN TRAFO 100 t: PUSAT SWING DI SINI · R MAKS 3,5 m
+      </Text>
+    </group>
+  );
+}
+
+/** Wind turbine tower: four tapered steel sections with flanges, door, foundation, aviation light on the top flange. */
+function WindTower() {
+  const n = 4;
+  const seg = TOWER.h / n;
+  const r = (y: number) => TOWER.rBase + ((TOWER.rTop - TOWER.rBase) * y) / TOWER.h;
+  return (
+    <group position={[TOWER.x, 0, TOWER.z]}>
+      <Cyl r={7} l={0.6} m={S.found} position={[0, 0.3, 0]} seg={40} />
+      {Array.from({ length: n }, (_, i) => (
+        <group key={i}>
+          <Cyl r={r((i + 1) * seg)} r2={r(i * seg)} l={seg} m={M.white} position={[0, i * seg + seg / 2, 0]} seg={32} />
+          <Cyl r={r((i + 1) * seg) + 0.06} l={0.25} m={M.greyLight} position={[0, (i + 1) * seg, 0]} seg={32} />
+        </group>
+      ))}
+      <Box s={[0.9, 2.2, 0.2]} m={M.greyLight} position={[0, 1.7, -TOWER.rBase]} />
+      <Box s={[1.4, 0.15, 1.2]} m={M.checker} position={[0, 0.65, -TOWER.rBase - 0.6]} />
+      <Cyl r={0.12} l={0.25} m={M.redLamp} position={[1.2, TOWER.h + 0.13, 0]} />
+      <Text position={[0, 22, -r(22) - 0.05]} rotation={[0, Math.PI, 0]} fontSize={1.2} color="#2a5d8f">
+        WTG-07 · HUB 150 m
+      </Text>
+    </group>
+  );
+}
+
+/** Where the lift plan puts the Zoomlion for the nacelle, and the radius to the tower. */
+function TowerPlan() {
+  const ring = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff6a00', transparent: true, opacity: 0.85, depthWrite: false }), []);
+  const R = Math.hypot(TOWER.x - TOWER_SPOT.x, TOWER.z - TOWER_SPOT.z);
+  return (
+    <group position={[TOWER_SPOT.x, 0.04, TOWER_SPOT.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} material={ring}>
+        <ringGeometry args={[0.9, 1.1, 32]} />
+      </mesh>
+      {[0, Math.PI / 2].map((a) => (
+        <mesh key={a} rotation={[-Math.PI / 2, 0, a]} material={ring}>
+          <planeGeometry args={[4, 0.15]} />
+        </mesh>
+      ))}
+      {/* outrigger base 16 × 16 m */}
+      {[
+        [8, 8],
+        [-8, 8],
+        [8, -8],
+        [-8, -8],
+      ].map(([x, z]) => (
+        <mesh key={`${x}${z}`} position={[x, 0, z]} rotation={[-Math.PI / 2, 0, 0]} material={ring}>
+          <ringGeometry args={[1.1, 1.3, 24]} />
+        </mesh>
+      ))}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} material={ring}>
+        <ringGeometry args={[R - 0.1, R + 0.1, 128]} />
+      </mesh>
+      <Text position={[4, 0.02, 10.5]} rotation={[-Math.PI / 2, 0, Math.PI]} fontSize={0.9} color="#ff6a00">
+        LIFT PLAN NACELLE 150 t · PUSAT SWING DI SINI · R {R.toFixed(0)} m
       </Text>
     </group>
   );
@@ -311,6 +378,8 @@ export function Site() {
         <TrafoBay />
         <Foundations />
         <LiftPlan />
+        <WindTower />
+        {SPEC.model === 'zoomlion' && <TowerPlan />}
         <PowerLine />
         <Surroundings />
       </Bake>

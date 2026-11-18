@@ -63,7 +63,35 @@ export function rangeOf(cw: number, col: number) {
 const overFront = (slew: number) => Math.abs(Math.atan2(Math.sin(slew), Math.cos(slew))) < (10 * Math.PI) / 180;
 const overRear = (slew: number) => Math.abs(Math.atan2(Math.sin(slew - Math.PI), Math.cos(slew - Math.PI))) < (10 * Math.PI) / 180;
 
+/** Zoomlion ZAT40000H763 estimate (kg): the published maximum load moments over the radius, with a strength cap that
+ * falls with boom length. 8 000 t·m basic boom, 6 300 t·m long main boom + long wind boom; no public chart exists. */
+export function zoomlionKg(cw: number, length: number, radius: number, fly: number) {
+  const R = Math.max(radius, 3);
+  const M = fly > 0 ? 6300 * Math.sqrt(206 / (length + fly)) : 8000 * Math.pow(19.8 / length, 0.6);
+  const cap = fly > 0 ? 300 : 4000 * Math.pow(19.8 / length, 1.3);
+  return Math.round((Math.min(cap, M / R) * 1000 * (cw >= 300 ? 1 : 0.6)) / 100) * 100;
+}
+
+function ratedZoomlion(q: ChartQuery): Rating {
+  if (q.cw < 100) return { kg: 0, note: 'Tanpa counterweight: tidak ada chart. Pasang counterweight dulu.' };
+  if (q.support === 'tires') return { kg: 0, note: 'Crane 4 000 t tidak boleh mengangkat di atas ban. Pasang outrigger.' };
+  const col = stopIndex(q.length);
+  if (col < 0) return { kg: 0, note: 'Boom belum terkunci pin (di antara posisi pin). Telescope ke panjang terkunci.' };
+  if (q.fly > 0 && col !== SPEC.stops.length - 1) return { kg: 0, note: `Boom wind hanya dipasang di boom utama penuh ${fmtM(SPEC.boomMax)} m.` };
+  let kg = zoomlionKg(q.cw, SPEC.stops[col], q.radius, q.fly);
+  let note = q.fly > 0 ? `Boom ${fmtM(SPEC.stops[col])} m + boom wind ${q.fly} m · CW ${q.cw} t · superlift` : `Boom ${fmtM(SPEC.stops[col])} m · CW ${q.cw} t · superlift`;
+  if (q.support !== 'full') {
+    const k = (q.support === 'mid' ? SPEC.outrigger.mid.x : SPEC.outrigger.retracted.x) / SPEC.outrigger.full.x;
+    kg = Math.round(kg * k * k);
+    note += q.support === 'mid' ? ' · outrigger setengah' : ' · outrigger masuk';
+  } else note += ' · outrigger 16 × 16 m';
+  return { kg, note: note + ' (chart perkiraan)', estimated: true };
+}
+
+const fmtM = (m: number) => m.toString().replace('.', ',');
+
 export function rated(q: ChartQuery): Rating {
+  if (SPEC.model === 'zoomlion') return ratedZoomlion(q);
   if (q.cw < 15) return { kg: 0, note: 'Tanpa counterweight: tidak ada chart. Pasang counterweight dulu.' };
   const key = q.cw > 20 ? '26.7' : '15.9';
   const col = stopIndex(q.length);
@@ -106,6 +134,11 @@ export function rated(q: ChartQuery): Rating {
 
 /** The full chart for the panel's table: rows of radius with the ratings per pinned length. */
 export function chartTable(cw: number) {
+  if (SPEC.model === 'zoomlion') {
+    const radii = [3, 5, 8, 10, 12, 15, 18, 22, 26, 30, 35, 40, 46, 52, 60, 70, 80, 90];
+    const rows: Row[] = radii.map((r) => [r, SPEC.stops.map((L) => (r < L * 0.08 || r > L * 0.97 - 2 ? null : zoomlionKg(cw, L, r, 0)))]);
+    return { lengths: SPEC.stops, rows, front: [] as Row[] };
+  }
   const ch = MAIN[cw > 20 ? '26.7' : '15.9'];
   return { lengths: ch.lengths, rows: ch.rows, front: ch.front };
 }

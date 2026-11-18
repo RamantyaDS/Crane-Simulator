@@ -13,9 +13,12 @@ import { CraneModel, craneObj } from './Crane';
 import { Fx } from './Fx';
 import { Loads } from './Loads';
 import { Site } from './Site';
+import { ZoomlionModel } from './Zoomlion';
+
+const BIG = SPEC.model === 'zoomlion'; // the 4 000 t crane works up to 200 m: wider camera, shadow and fog ranges
 
 /** Camera look offsets, changed by mouse drags, the wheel and the gamepad's D-pad. */
-const look = { yaw: 0.6, pitch: 0.42, dist: 32, cabYaw: 0, cabPitch: -0.05 };
+const look = { yaw: 0.6, pitch: 0.42, dist: BIG ? 75 : 32, cabYaw: 0, cabPitch: -0.05 };
 if (import.meta.env.DEV) (globalThis as unknown as { look: typeof look }).look = look;
 
 function Driver() {
@@ -46,7 +49,7 @@ function Sun() {
     const l = light.current!;
     const fx = (cr.x + cr.hook.x) / 2;
     const fz = (cr.z + cr.hook.z) / 2;
-    l.position.set(fx + 40, 60, fz + 25);
+    l.position.set(fx + (BIG ? 120 : 40), BIG ? 180 : 60, fz + (BIG ? 75 : 25));
     l.target.position.set(fx, 0, fz);
     l.target.updateMatrixWorld();
   });
@@ -57,11 +60,11 @@ function Sun() {
       color="#fff1da"
       castShadow
       shadow-mapSize={[SHADOW, SHADOW]}
-      shadow-camera-left={-40}
-      shadow-camera-right={40}
-      shadow-camera-top={40}
-      shadow-camera-bottom={-40}
-      shadow-camera-far={200}
+      shadow-camera-left={BIG ? -80 : -40}
+      shadow-camera-right={BIG ? 80 : 40}
+      shadow-camera-top={BIG ? 80 : 40}
+      shadow-camera-bottom={BIG ? -80 : -40}
+      shadow-camera-far={BIG ? 500 : 200}
       shadow-bias={-0.0004}
       shadow-normalBias={0.04}
     />
@@ -113,7 +116,7 @@ function CameraRig() {
         look.pitch = Math.max(0.03, Math.min(1.45, look.pitch + e.movementY * 0.004));
       }
     };
-    const wheel = (e: WheelEvent) => (look.dist = Math.max(8, Math.min(140, look.dist * (1 + Math.sign(e.deltaY) * 0.1))));
+    const wheel = (e: WheelEvent) => (look.dist = Math.max(8, Math.min(BIG ? 360 : 140, look.dist * (1 + Math.sign(e.deltaY) * 0.1))));
     el.addEventListener('pointerdown', dn);
     addEventListener('pointerup', up);
     el.addEventListener('pointermove', mv);
@@ -139,7 +142,7 @@ function CameraRig() {
     look.pitch = Math.max(0.03, Math.min(1.45, look.pitch + padLook.y * dt));
     if (cam === 'cab' && craneObj.upper) {
       craneObj.upper.updateWorldMatrix(true, false);
-      tmp.v.set(1.15, SPEC.deckY + 2.05, 1.7);
+      tmp.v.set(...(SPEC.cabEye as [number, number, number]));
       craneObj.upper.localToWorld(tmp.v);
       camera.position.copy(tmp.v);
       craneObj.upper.getWorldQuaternion(tmp.q);
@@ -158,7 +161,7 @@ function CameraRig() {
     }
     // orbiting views look at the crane, or between the crane and the hook when working
     const focus = tmp.t;
-    if (mode === 'crane') focus.set((cr.x * 2 + cr.hook.x) / 3, Math.min(12, cr.hook.y * 0.5 + 3), (cr.z * 2 + cr.hook.z) / 3);
+    if (mode === 'crane') focus.set((cr.x * 2 + cr.hook.x) / 3, Math.min(BIG ? 90 : 12, cr.hook.y * 0.5 + 3), (cr.z * 2 + cr.hook.z) / 3);
     else focus.set(cr.x, 3, cr.z);
     let want: THREE.Vector3;
     if (cam === 'top') want = tmp.v.set(focus.x + 0.01, focus.y + look.dist * 1.8 + 20, focus.z + 0.01);
@@ -184,7 +187,7 @@ export function Experience() {
   return (
     <Canvas shadows dpr={[1, MAX_DPR]} camera={{ position: [50, 30, -80], fov: 50, near: 0.2, far: 1200 }} gl={{ antialias: true }}>
       <color attach="background" args={['#bcd3e6']} />
-      <fog attach="fog" args={['#c7d4dd', 120, 520]} />
+      <fog attach="fog" args={['#c7d4dd', BIG ? 220 : 120, BIG ? 900 : 520]} />
       <Sky sunPosition={[40, 26, 25]} turbidity={3.5} rayleigh={0.9} mieCoefficient={0.004} mieDirectionalG={0.8} />
       <hemisphereLight args={['#dbe9ff', '#6b5f4c', 0.85]} />
       <Sun />
@@ -196,7 +199,7 @@ export function Experience() {
       </Environment>
       <Site />
       <Loads />
-      <CraneModel />
+      {BIG ? <ZoomlionModel /> : <CraneModel />}
       <RadiusRing />
       <Fx />
       <CameraRig />
