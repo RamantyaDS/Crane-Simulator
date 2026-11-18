@@ -14,6 +14,12 @@ export const M = {
   zlGreen: new THREE.MeshStandardMaterial({ color: '#9bd12a', metalness: 0.2, roughness: 0.38 }),
   zlGreenDark: new THREE.MeshStandardMaterial({ color: '#6f9a17', metalness: 0.25, roughness: 0.45 }),
   zlNavy: new THREE.MeshStandardMaterial({ color: '#1e3560', metalness: 0.3, roughness: 0.42 }),
+  // ZAT40000H site photos: gunmetal carrier, light grey upper house, grey luffing cylinders, near-black ballast
+  zlGun: new THREE.MeshStandardMaterial({ color: '#4d535a', metalness: 0.45, roughness: 0.4 }),
+  zlGunDark: new THREE.MeshStandardMaterial({ color: '#2c3035', metalness: 0.45, roughness: 0.48 }),
+  zlSilver: new THREE.MeshStandardMaterial({ color: '#c8ccd0', metalness: 0.3, roughness: 0.4 }),
+  zlLuff: new THREE.MeshStandardMaterial({ color: '#b3b9bf', metalness: 0.35, roughness: 0.4 }),
+  ballast: new THREE.MeshStandardMaterial({ color: '#33373b', metalness: 0.3, roughness: 0.65 }),
   hookYellow: new THREE.MeshStandardMaterial({ color: '#f0b20a', metalness: 0.3, roughness: 0.45 }),
   rope: new THREE.MeshStandardMaterial({ color: '#3a3936', metalness: 0.7, roughness: 0.5 }),
   sling: new THREE.MeshStandardMaterial({ color: '#8a8f94', metalness: 0.8, roughness: 0.4 }),

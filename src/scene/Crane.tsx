@@ -29,14 +29,14 @@ function useDiamond() {
     128,
     128,
     (g) => {
-      g.fillStyle = '#b3141a';
+      g.fillStyle = '#8d9297';
       g.fillRect(0, 0, 128, 128);
       for (let y = 0; y < 8; y++)
         for (let x = 0; x < 8; x++) {
           g.save();
           g.translate(x * 16 + 8 + (y % 2) * 8, y * 16 + 8);
           g.rotate(y % 2 ? 0.8 : -0.8);
-          g.fillStyle = 'rgba(255,170,170,0.35)';
+          g.fillStyle = 'rgba(255,255,255,0.35)';
           g.fillRect(-5, -1.2, 10, 2.4);
           g.restore();
         }
@@ -80,20 +80,38 @@ function CarrierBody() {
   return (
     <group>
       {/* carrier hull: sloped nose and tail for the approach angles, arches over the front axle and the rear tandem */}
-      <mesh geometry={hull} material={M.lbWhite} castShadow receiveShadow />
-      {/* red diamond-plate side decks */}
+      <mesh geometry={hull} material={M.lbRed} castShadow receiveShadow />
+      {/* grey diamond-plate side decks */}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * 1.15, DECK + 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[0.7, L - 1.2]} />
           <meshStandardMaterial map={diamond} metalness={0.4} roughness={0.5} />
         </mesh>
       ))}
-      <RB s={[3.0, 0.12, L - 1.2]} r={0.03} m={M.lbWhite} position={[0, DECK - 0.06, 0]} />
+      <RB s={[3.0, 0.12, L - 1.2]} r={0.03} m={M.lbRed} position={[0, DECK - 0.06, 0]} />
+      {/* deck handrails and the red access ladders on both sides between the front axle and the tandem */}
+      {[-1, 1].map((s) => (
+        <group key={s}>
+          {[-0.45, 0.45].map((dz) => (
+            <Cyl key={dz} r={0.025} l={1.55} m={M.lbRed} position={[s * 1.52, 1.35, (SPEC.axles[0] + SPEC.axles[1]) / 2 + dz * 0.5]} seg={8} />
+          ))}
+          {[0.75, 1.1, 1.45, 1.8].map((y) => (
+            <Box key={y} s={[0.12, 0.04, 0.5]} m={M.checker} position={[s * 1.52, y, (SPEC.axles[0] + SPEC.axles[1]) / 2]} />
+          ))}
+          <Cyl r={0.025} l={L - 3} axis="z" m={M.lbGrey} position={[s * 1.45, DECK + 0.9, 0]} seg={8} />
+          {[-L / 2 + 1.6, -1.5, 1.5, L / 2 - 1.6].map((z) => (
+            <Cyl key={z} r={0.025} l={0.9} m={M.lbGrey} position={[s * 1.45, DECK + 0.45, z]} seg={8} />
+          ))}
+        </group>
+      ))}
       {/* wheel housings: front axle and the rear tandem */}
       {[-1, 1].map((s) => (
         <group key={s}>
-          <RB s={[0.72, 0.5, 2.0]} r={0.08} m={M.lbWhite} position={[s * 1.15, DECK + 0.2, SPEC.axles[0]]} />
-          <RB s={[0.72, 0.5, 3.4]} r={0.08} m={M.lbWhite} position={[s * 1.15, DECK + 0.2, (SPEC.axles[1] + SPEC.axles[2]) / 2]} />
+          <RB s={[0.72, 0.5, 2.0]} r={0.08} m={M.lbRed} position={[s * 1.15, DECK + 0.2, SPEC.axles[0]]} />
+          <RB s={[0.72, 0.5, 3.4]} r={0.08} m={M.lbRed} position={[s * 1.15, DECK + 0.2, (SPEC.axles[1] + SPEC.axles[2]) / 2]} />
+          <Text position={[s * 1.52, 1.25, (SPEC.axles[1] + SPEC.axles[2]) / 2]} rotation={[0, (s * Math.PI) / 2, 0]} fontSize={0.26} color="#ffffff" fontWeight={700}>
+            Link-Belt
+          </Text>
           {/* side tool boxes, fuel tank (left) and hydraulic tank (right) between the axles */}
           <RB s={[0.4, 0.7, 1.6]} r={0.05} m={M.lbGrey} position={[s * 1.3, 1.15, 0.6]} />
           <Box s={[0.42, 0.06, 0.4]} m={M.checker} position={[s * 1.4, 0.75, -0.6]} />
@@ -101,7 +119,7 @@ function CarrierBody() {
         </group>
       ))}
       {/* engine compartment at the rear with grille and the exhaust stack */}
-      <RB s={[2.6, 0.9, 1.6]} r={0.06} m={M.lbWhite} position={[0, DECK + 0.45, -L / 2 + 1.2]} />
+      <RB s={[2.6, 0.9, 1.6]} r={0.06} m={M.lbRed} position={[0, DECK + 0.45, -L / 2 + 1.2]} />
       <Box s={[1.6, 0.6, 0.02]} m={M.lbBlack} position={[0, DECK + 0.45, -L / 2 + 0.39]} />
       <Cyl r={0.08} l={1.4} m={M.pipe} position={[-1.1, DECK + 1.3, -L / 2 + 1.6]} />
       {/* front and rear bumpers, lamps, tie-down lugs, logo */}
@@ -124,13 +142,25 @@ function CarrierBody() {
       ))}
       {/* outrigger boxes, front and rear */}
       {[1, -1].map((e) => (
-        <RB key={e} s={[2.9, 0.55, 0.6]} r={0.04} m={M.lbWhite} position={[0, 1.05, e * SPEC.outrigger.full.z]} />
+        <RB key={e} s={[2.9, 0.55, 0.6]} r={0.04} m={M.lbRed} position={[0, 1.05, e * SPEC.outrigger.full.z]} />
       ))}
     </group>
   );
 }
 
+/** Red and white bands round the outrigger jack housings (as on the RTC-80160 photos). */
+function useBands() {
+  const tex = useCanvasTexture(16, 64, (g) => {
+    for (let i = 0; i < 4; i++) {
+      g.fillStyle = i % 2 ? '#f2f2f2' : '#c3161c';
+      g.fillRect(0, i * 16, 16, 16);
+    }
+  });
+  return useMemo(() => new THREE.MeshStandardMaterial({ map: tex, metalness: 0.25, roughness: 0.42 }), [tex]);
+}
+
 function Outriggers() {
+  const bands = useBands();
   const beams = useRef<THREE.Group[]>([]);
   const jacks = useRef<THREE.Group[]>([]);
   const mats = useRef<THREE.Group[]>([]);
@@ -162,10 +192,10 @@ function Outriggers() {
       {P.map(([sx, sz], i) => (
         <group key={i} position={[0, 1.05, sz * SPEC.outrigger.full.z]}>
           <group ref={(el) => el && (beams.current[i] = el)}>
-            <RB s={[2.6, 0.4, 0.42]} r={0.03} m={M.lbWhite} />
+            <RB s={[2.6, 0.4, 0.42]} r={0.03} m={M.lbBlack} />
             {/* jack housing at the beam end */}
             <group position={[sx * 1.2, 0, 0]}>
-              <Cyl r={0.17} l={0.75} m={M.lbWhite} position={[0, 0.05, 0]} />
+              <Cyl r={0.17} l={0.75} m={bands} position={[0, 0.05, 0]} />
               <group ref={(el) => el && (jacks.current[i] = el)}>
                 <Cyl r={0.11} l={0.9} m={M.chrome} position={[0, -0.05, 0]} />
                 <Cyl r={0.33} l={0.08} m={M.lbBlack} position={[0, -0.52, 0]} />
@@ -205,7 +235,7 @@ function Wheels() {
         [-1, 1].map((s) => (
           <group key={`${ai}${s}`} position={[s * SPEC.track / 2, OTR_TYRE.R, z]} ref={keep(ai === 0 ? steerF.current : steerR.current)} userData={{ mid: ai === 1 }}>
             <group ref={keep(spin.current)}>
-              <Wheel spec={OTR_TYRE} side={s as 1 | -1} />
+              <Wheel spec={OTR_TYRE} side={s as 1 | -1} rim={M.rim} />
             </group>
           </group>
         )),
@@ -327,6 +357,28 @@ function UpperBody() {
       ))}
       {/* engine-side cover on the right */}
       <RB s={[0.8, 1.0, 2.6]} r={0.08} m={M.lbWhite} position={[-1.0, DECK + 1.05, -1.6]} />
+      <Box s={[0.02, 0.08, 2.4]} m={M.lbRed} position={[-1.405, DECK + 1.15, -1.6]} />
+      <Box s={[0.02, 0.03, 2.4]} m={M.lbRed} position={[-1.405, DECK + 1.03, -1.6]} />
+      <Text position={[-1.415, DECK + 1.35, -2.2]} rotation={[0, -Math.PI / 2, 0]} fontSize={0.28} color="#1a1a1a" fontWeight={700}>
+        80160
+      </Text>
+      {/* louvres on the engine cover */}
+      {Array.from({ length: 5 }, (_, i) => (
+        <Box key={i} s={[0.02, 0.03, 0.8]} m={M.lbBlack} position={[-1.405, DECK + 0.72 + i * 0.07, -0.75]} />
+      ))}
+      {/* hydraulic hoses from the valve bank down past the winches */}
+      {[-0.2, 0, 0.2].map((x) => (
+        <Cyl key={x} r={0.03} l={1.4} axis="z" m={M.lbBlack} position={[0.55 + x * 0.3, DECK + 0.75, -2.1]} seg={6} />
+      ))}
+      {/* grey handrails round the top of the upper */}
+      {[-1.05, 1.05].map((x) => (
+        <group key={x}>
+          <Cyl r={0.022} l={2.4} axis="z" m={M.lbGrey} position={[x, DECK + 1.75, -2.6]} seg={8} />
+          {[-3.7, -2.6, -1.5].map((z) => (
+            <Cyl key={z} r={0.022} l={0.9} m={M.lbGrey} position={[x, DECK + 1.3, z]} seg={8} />
+          ))}
+        </group>
+      ))}
       <Cab />
     </group>
   );
@@ -336,9 +388,9 @@ function UpperBody() {
 function CounterweightShow() {
   const ref = useRef<THREE.Group>(null);
   const stripes = useCanvasTexture(256, 64, (g) => {
-    g.fillStyle = '#f2c21c';
+    g.fillStyle = '#f2f2f2';
     g.fillRect(0, 0, 256, 64);
-    g.fillStyle = '#151515';
+    g.fillStyle = '#c3161c';
     for (let i = -2; i < 12; i++) {
       g.beginPath();
       g.moveTo(i * 32, 64);
@@ -358,13 +410,15 @@ function CounterweightShow() {
   });
   return (
     <group ref={ref} position={[0, DECK + 0.25, SPEC.cwArm]}>
-      <RB s={[2.9, 1.4, 1.4]} r={0.1} m={M.lbGrey} position={[0, 0.7, 0]} />
-      <mesh position={[0, 0.25, -0.71]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={[2.6, 0.28]} />
-        <meshStandardMaterial map={stripes} roughness={0.6} polygonOffset polygonOffsetFactor={-2} />
-      </mesh>
-      <Text position={[0, 0.9, -0.715]} rotation={[0, Math.PI, 0]} fontSize={0.3} color="#c3161c" fontWeight={700}>
-        RTC-80160
+      <RB s={[2.9, 1.4, 1.4]} r={0.1} m={M.lbBlack} position={[0, 0.7, 0]} />
+      {[-1.2, 1.2].map((x) => (
+        <mesh key={x} position={[x, 0.7, -0.71]} rotation={[0, Math.PI, 0]}>
+          <planeGeometry args={[0.32, 1.2]} />
+          <meshStandardMaterial map={stripes} roughness={0.6} polygonOffset polygonOffsetFactor={-2} />
+        </mesh>
+      ))}
+      <Text position={[0, 0.75, -0.715]} rotation={[0, Math.PI, 0]} fontSize={0.36} color="#ffffff" fontWeight={700}>
+        Link-Belt
       </Text>
     </group>
   );

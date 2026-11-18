@@ -17,17 +17,17 @@ import { Wheel, type TyreSpec } from './tyre';
 
 const DECK = SPEC.deckY;
 const ZL_TYRE: TyreSpec = { R: SPEC.tyreR, W: SPEC.tyreW, rimR: 0.33, tread: 'lug', lugs: 18, label: '16.00R25  CRANE' };
-const OUT_Z = SPEC.outrigger.full.z;
-const BEAM = 7.2; // outrigger beam length
 
 // ---------- carrier ----------
+// Livery and layout from the user's ZAT40000H site photos: gunmetal carrier with a full-width driver's cab, light
+// engine module behind it, black lattice outrigger beams with yellow/black end plates, dark ballast with hazard strips.
 
-/** Red and white diagonal warning stripes (bumpers, outrigger beams). */
-function useStripes() {
-  return useCanvasTexture(128, 32, (g) => {
-    g.fillStyle = '#f2f2f2';
+/** Diagonal warning stripes as one shared material (yellow/black on this crane). */
+function useStripeMat(a = '#f2c21c', b = '#151515') {
+  const tex = useCanvasTexture(128, 32, (g) => {
+    g.fillStyle = a;
     g.fillRect(0, 0, 128, 32);
-    g.fillStyle = '#c3161c';
+    g.fillStyle = b;
     for (let x = -32; x < 160; x += 32) {
       g.beginPath();
       g.moveTo(x, 32);
@@ -37,15 +37,14 @@ function useStripes() {
       g.fill();
     }
   });
+  return useMemo(() => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }), [tex]);
 }
 
-function StripePlate({ w, h, ...p }: { w: number; h: number } & JSX.IntrinsicElements['group']) {
-  const tex = useStripes();
+function Plate({ w, h, m, ...p }: { w: number; h: number; m: THREE.Material } & JSX.IntrinsicElements['group']) {
   return (
     <group {...p}>
-      <mesh>
+      <mesh material={m}>
         <planeGeometry args={[w, h]} />
-        <meshStandardMaterial map={tex} roughness={0.5} polygonOffset polygonOffsetFactor={-2} />
       </mesh>
     </group>
   );
@@ -81,68 +80,170 @@ function Rail({ z0, z1, h = 1.0, ...p }: { z0: number; z1: number; h?: number } 
   );
 }
 
+const CAB_Z = SPEC.carrierLen / 2 - 1.3; // full-width driver's cab
+const ENGINE_Z = CAB_Z - 2.6; // engine module behind it
+
 function Carrier() {
   const L = SPEC.carrierLen;
+  const F = L / 2;
+  const stripes = useStripeMat();
   return (
     <group>
-      <CarrierDetail />
-      {/* frame, side skirts with the green line, deck */}
-      <RB s={[1.3, 0.8, L - 1.5]} r={0.05} m={M.zlNavy} position={[0, 1.15, 0]} />
-      <RB s={[2.96, 0.62, L - 1.2]} r={0.08} m={M.lbWhite} position={[0, DECK - 0.31, -0.3]} />
+      {/* frame, body sides, deck */}
+      <RB s={[1.3, 0.8, L - 1.5]} r={0.05} m={M.zlGunDark} position={[0, 1.15, 0]} />
+      <RB s={[2.96, 0.62, L - 3.2]} r={0.08} m={M.zlGun} position={[0, DECK - 0.31, -1.4]} />
       {[1, -1].map((s) => (
         <group key={s}>
-          <Box s={[0.03, 0.09, L - 4]} m={M.lbRed} position={[s * 1.495, DECK - 0.42, -0.6]} />
-          <Box s={[0.03, 0.3, L - 1.4]} m={M.zlNavy} position={[s * 1.49, DECK - 0.75, -0.3]} />
-          <Text position={[s * 1.5, DECK - 0.2, -2]} rotation={[0, (s * Math.PI) / 2, 0]} fontSize={0.34} color="#1e3560" fontWeight={700}>
+          <Box s={[0.03, 0.22, L - 4]} m={M.zlGunDark} position={[s * 1.49, DECK - 0.55, -1.4]} />
+          <Text position={[s * 1.5, DECK - 0.22, -3]} rotation={[0, (s * Math.PI) / 2, 0]} fontSize={0.32} color="#e8eaec" fontWeight={700}>
             ZOOMLION
           </Text>
         </group>
       ))}
-      {/* mudguards over each axle */}
+      {/* mudguards with their outer lips over each axle */}
       {SPEC.axles.map((z) =>
-        [1, -1].map((s) => <Box key={`${z}${s}`} s={[0.62, 0.06, 1.8]} m={M.lbBlack} position={[s * (SPEC.track / 2), SPEC.tyreR * 2 + 0.08, z]} />),
+        [1, -1].map((s) => (
+          <group key={`${z}${s}`} position={[s * (SPEC.track / 2), SPEC.tyreR * 2 + 0.08, z]}>
+            <Box s={[0.62, 0.06, 1.8]} m={M.lbBlack} />
+            <Box s={[0.04, 0.28, 1.8]} m={M.lbBlack} position={[s * 0.31, -0.12, 0]} />
+          </group>
+        )),
       )}
-      {/* driver's cab on the front left, engine and radiator front right */}
-      <group position={[0.68, 0, L / 2 - 1.25]}>
-        <RB s={[1.5, 2.1, 2.3]} r={0.12} m={M.lbWhite} position={[0, 2.25, 0]} />
-        <mesh position={[0, 2.6, 1.16]} material={M.glass}>
-          <boxGeometry args={[1.3, 1.0, 0.02]} />
+      {/* full-width driver's cab: gunmetal, big two-piece windscreen, sun visor, light bar */}
+      <group position={[0, 0, CAB_Z]}>
+        <RB s={[2.98, 1.85, 2.4]} r={0.16} m={M.zlGun} position={[0, 2.27, 0]} />
+        <mesh position={[0, 2.62, 1.21]} rotation={[-0.06, 0, 0]} material={M.glass}>
+          <boxGeometry args={[2.6, 0.95, 0.02]} />
         </mesh>
-        <mesh position={[0.76, 2.6, 0.2]} material={M.glass}>
-          <boxGeometry args={[0.02, 0.9, 1.5]} />
-        </mesh>
-        <Box s={[1.52, 0.1, 2.32]} m={M.lbGrey} position={[0, 1.7, 0]} />
-        <Cyl r={0.08} l={0.12} m={M.amberLight} position={[0.4, 3.36, -0.6]} />
+        {[1, -1].map((s) => (
+          <mesh key={s} position={[s * 1.495, 2.62, 0.25]} material={M.glass}>
+            <boxGeometry args={[0.02, 0.8, 1.4]} />
+          </mesh>
+        ))}
+        {[3.12, 2.12].map((y) => (
+          <Box key={y} s={[2.66, 0.06, 0.04]} m={M.black} position={[0, y, 1.22]} />
+        ))}
+        {[-1.32, 0, 1.32].map((x) => (
+          <Box key={x} s={[0.06, 1.05, 0.04]} m={M.black} position={[x, 2.62, 1.22]} />
+        ))}
+        {[-0.65, 0.65].map((x) => (
+          <Box key={x} s={[0.03, 0.62, 0.02]} m={M.black} position={[x, 2.35, 1.25]} rotation={[0, 0, x > 0 ? 0.5 : -0.5]} />
+        ))}
+        <Box s={[2.9, 0.06, 0.32]} m={M.zlGunDark} position={[0, 3.18, 1.3]} />
+        <Box s={[2.2, 0.12, 0.25]} m={M.black} position={[0, 3.26, 0.9]} />
+        {[-0.8, -0.27, 0.27, 0.8].map((x) => (
+          <Box key={x} s={[0.3, 0.09, 0.04]} m={M.lens} position={[x, 3.26, 1.03]} />
+        ))}
+        {[-1.3, 1.3].map((x) => (
+          <Cyl key={x} r={0.08} l={0.13} m={M.amberLight} position={[x, 3.27, -0.9]} />
+        ))}
+        {/* grille, logo, headlamps under the windscreen */}
+        <Box s={[1.8, 0.62, 0.04]} m={M.zlGunDark} position={[0, 1.78, 1.21]} />
+        {Array.from({ length: 5 }, (_, i) => (
+          <Box key={i} s={[1.7, 0.04, 0.03]} m={M.black} position={[0, 1.55 + i * 0.12, 1.235]} />
+        ))}
+        <Text position={[0, 2.0, 1.25]} fontSize={0.16} color="#e8eaec" fontWeight={700}>
+          ZOOMLION
+        </Text>
+        {[-1.2, 1.2].map((x) => (
+          <group key={x}>
+            <Box s={[0.42, 0.18, 0.04]} m={M.lens} position={[x, 1.72, 1.22]} />
+            <Box s={[0.18, 0.1, 0.04]} m={M.amberLight} position={[x, 1.5, 1.22]} />
+          </group>
+        ))}
+        {/* mirrors on arms, steps and grab handles at both doors */}
+        {[1, -1].map((s) => (
+          <group key={s}>
+            <Cyl r={0.025} l={0.45} axis="x" m={M.black} position={[s * 1.72, 2.95, 1.0]} seg={6} />
+            <Box s={[0.08, 0.5, 0.26]} m={M.black} position={[s * 1.95, 2.65, 1.0]} />
+            {[0.75, 1.2].map((y) => (
+              <Box key={y} s={[0.4, 0.06, 0.65]} m={M.checker} position={[s * 1.52, y, 0.1]} />
+            ))}
+            <Cyl r={0.025} l={1.0} m={M.chrome} position={[s * 1.51, 2.4, -0.6]} seg={8} />
+            <Box s={[0.01, 1.6, 0.03]} m={M.black} position={[s * 1.495, 2.2, -0.7]} />
+          </group>
+        ))}
       </group>
-      <RB s={[1.35, 1.1, 2.3]} r={0.1} m={M.lbWhite} position={[-0.78, 2.3, L / 2 - 1.25]} />
-      <Box s={[2.9, 0.4, 0.3]} m={M.lbBlack} position={[0, 0.95, L / 2 - 0.1]} />
-      {[0.95, -0.95].map((x) => (
-        <Cyl key={x} r={0.1} l={0.04} axis="z" m={M.lens} position={[x, 1.25, L / 2 + 0.02]} />
+      {/* bumper with the warning plate and tow eyes */}
+      <Box s={[2.98, 0.45, 0.35]} m={M.zlGunDark} position={[0, 0.95, F - 0.05]} />
+      <Plate w={1.4} h={0.28} m={stripes} position={[0, 0.95, F + 0.13]} />
+      {/* engine module behind the cab: light grey, louvres both sides */}
+      <group position={[0, DECK, ENGINE_Z]}>
+        <RB s={[2.9, 0.88, 2.4]} r={0.1} m={M.zlSilver} position={[0, 0.44, 0]} />
+        {[1, -1].map((s) =>
+          Array.from({ length: 4 }, (_, i) => <Box key={`${s}${i}`} s={[0.03, 0.05, 1.6]} m={M.black} position={[s * 1.46, 0.25 + i * 0.15, 0]} />),
+        )}
+        <Cyl r={0.1} l={0.5} m={M.chrome} position={[-1.1, 1.1, -0.9]} seg={10} />
+      </group>
+      {/* deck plating and air tanks between the upper and the engine module, boom rest */}
+      <Box s={[2.9, 0.04, 3.4]} m={M.checker} position={[0, DECK + 0.02, 4.4]} />
+      {[1.15, -1.15].map((x) => (
+        <Cyl key={x} r={0.2} l={1.8} axis="z" m={M.greyLight} position={[x, DECK + 0.24, 3.9]} seg={16} />
       ))}
-      {/* rear power pack and bumper */}
-      <RB s={[2.8, 1.1, 2.2]} r={0.1} m={M.lbWhite} position={[0, DECK + 0.45, -L / 2 + 1.3]} />
-      <Box s={[2.9, 0.4, 0.3]} m={M.lbBlack} position={[0, 0.95, -L / 2 + 0.1]} />
-      {/* outrigger boxes front and rear */}
-      {[1, -1].map((e) => (
-        <RB key={e} s={[2.98, 0.9, 1.1]} r={0.05} m={M.zlNavy} position={[0, 1.4, e * OUT_Z]} />
+      <group position={[0, DECK, 5.7]}>
+        {[-0.9, 0.9].map((x) => (
+          <Box key={x} s={[0.2, 0.9, 0.2]} m={M.zlGunDark} position={[x, 0.45, 0]} />
+        ))}
+        <Box s={[2.0, 0.16, 0.4]} m={M.zlGunDark} position={[0, 0.9, 0]} />
+        <Box s={[1.4, 0.06, 0.42]} m={M.rubber} position={[0, 1.0, 0]} />
+      </group>
+      {/* side tool boxes and fuel/hydraulic tanks under the deck between the outrigger boxes and the axles */}
+      {[1, -1].map((s) => (
+        <group key={s}>
+          <RB s={[0.5, 0.5, 1.0]} r={0.04} m={M.zlGunDark} position={[s * 1.25, DECK - 0.95, 0]} />
+          <Box s={[0.02, 0.04, 0.3]} m={M.chrome} position={[s * 1.51, DECK - 0.85, 0]} />
+        </group>
+      ))}
+      {/* rear power pack, lamps, ladder, warning plate, grille */}
+      <RB s={[2.8, 1.1, 2.2]} r={0.1} m={M.zlGun} position={[0, DECK + 0.45, -F + 1.3]} />
+      <Box s={[2.98, 0.45, 0.35]} m={M.zlGunDark} position={[0, 0.95, -F + 0.05]} />
+      {[1.1, -1.1].map((x) => (
+        <group key={x}>
+          <Box s={[0.32, 0.15, 0.04]} m={M.redLamp} position={[x, 1.25, -F - 0.14]} />
+          <Box s={[0.16, 0.15, 0.04]} m={M.amberLight} position={[x * 0.62, 1.25, -F - 0.14]} />
+        </group>
+      ))}
+      <Plate w={1.4} h={0.28} m={stripes} position={[0, 0.95, -F - 0.13]} rotation={[0, Math.PI, 0]} />
+      <Ladder h={2.3} w={0.45} position={[0, 1.15, -F - 0.2]} rotation={[0, Math.PI / 2, 0]} />
+      {Array.from({ length: 5 }, (_, i) => (
+        <Box key={i} s={[2.2, 0.05, 0.04]} m={M.black} position={[0, DECK + 0.2 + i * 0.15, -F + 0.18]} />
       ))}
     </group>
   );
 }
 
+/** Swing-out (X) outriggers: four telescopic box legs hinged on brackets at the chassis sides, swung out diagonally to
+ *  the pads of the 16 × 16 m base (seen from above they form an X). Folded along the chassis for travel. The sim's pad
+ *  positions drive them: each leg points from its hinge to its pad and telescopes to reach it. */
+export const HINGE = { x: 1.85, z: 2.0, y: 1.95 };
+const LEG_OUT = 5.6; // fixed outer box length
+
 function Outriggers() {
-  const beams = useRef<THREE.Group[]>([]);
+  const legs = useRef<THREE.Group[]>([]);
+  const inner = useRef<THREE.Group[]>([]);
+  const ends = useRef<THREE.Group[]>([]);
   const jacks = useRef<THREE.Group[]>([]);
+  const padsG = useRef<THREE.Group[]>([]);
   const mats = useRef<THREE.Group[]>([]);
+  const stripes = useStripeMat();
   useFrame(() => {
-    pads(cr).forEach(([x], i) => {
-      const s = Math.sign(x);
-      if (beams.current[i]) beams.current[i].position.x = s * (Math.abs(x) - BEAM / 2);
+    pads(cr).forEach(([x, z], i) => {
+      const hx = Math.sign(x) * HINGE.x;
+      const hz = Math.sign(z) * HINGE.z;
+      const dx = x - hx;
+      const dz = z - hz;
+      const len = Math.hypot(dx, dz);
+      const leg = legs.current[i];
+      if (leg) leg.rotation.y = Math.atan2(dx, dz);
+      if (inner.current[i]) inner.current[i].position.z = len - 3.4;
+      if (ends.current[i]) ends.current[i].position.z = len;
       if (jacks.current[i]) jacks.current[i].position.y = -cr.jacks[i] - 0.1;
+      const travel = cr.beam < SPEC.outrigger.retracted.x + 0.3 && cr.jacks.every((j) => j < 0.02);
+      if (padsG.current[i]) padsG.current[i].visible = !travel;
       const m = mats.current[i];
       if (m) {
         m.visible = cr.mats && !cr.onTyres;
-        m.position.y = -(cr.lift + 1.4) + 0.1 - cr.sink[i];
+        m.position.y = -(cr.lift + HINGE.y) + 0.1 - cr.sink[i];
       }
     });
   });
@@ -152,20 +253,54 @@ function Outriggers() {
     [1, -1],
     [-1, -1],
   ];
+  const H = 0.7;
+  const W = 0.62;
+  const bays = 4;
   return (
     <group>
       {P.map(([sx, sz], i) => (
-        <group key={i} position={[0, 1.4, sz * OUT_Z + (sx > 0 ? 0.25 : -0.25)]}>
-          <group ref={(el) => el && (beams.current[i] = el)}>
-            <RB s={[BEAM, 0.6, 0.5]} r={0.04} m={M.zlNavy} />
-            {[1, -1].map((k) => (
-              <StripePlate key={k} w={1.4} h={0.4} position={[sx * (BEAM / 2 - 1.1), 0, k * 0.255]} rotation={[0, k > 0 ? 0 : Math.PI, 0]} />
-            ))}
-            <group position={[(sx * BEAM) / 2, 0, 0]}>
-              <Cyl r={0.36} l={1.1} m={M.zlNavy} position={[0, 0.1, 0]} />
-              <group ref={(el) => el && (jacks.current[i] = el)}>
-                <Cyl r={0.24} l={1.2} m={M.chrome} position={[0, -0.1, 0]} />
-                <Cyl r={SPEC.outrigger.pad / 2} l={0.14} m={M.lbBlack} position={[0, -0.72, 0]} seg={28} />
+        <group key={i} position={[sx * HINGE.x, HINGE.y, sz * HINGE.z]}>
+          {/* hinge bracket on the chassis side */}
+          <Bake>
+            <RB s={[0.5, 1.0, 0.9]} r={0.04} m={M.zlGunDark} position={[-sx * 0.15, 0, 0]} />
+            <Cyl r={0.16} l={1.2} m={M.steel} />
+          </Bake>
+          <group ref={(el) => el && (legs.current[i] = el)}>
+            {/* outer box with lattice-braced sides */}
+            <Bake>
+              <RB s={[W, H, LEG_OUT]} r={0.04} m={M.zlGunDark} position={[0, 0, LEG_OUT / 2]} />
+              {[1, -1].map((k) => (
+                <group key={k} position={[(k * W) / 2 + k * 0.03, 0, 0]}>
+                  {[H / 2 - 0.06, -H / 2 + 0.06].map((y) => (
+                    <Box key={y} s={[0.05, 0.1, LEG_OUT]} m={M.black} position={[0, y, LEG_OUT / 2]} />
+                  ))}
+                  {Array.from({ length: bays + 1 }, (_, b) => (
+                    <Box key={`p${b}`} s={[0.05, H, 0.08]} m={M.black} position={[0, 0, (b * LEG_OUT) / bays]} />
+                  ))}
+                  {Array.from({ length: bays }, (_, b) => (
+                    <Box key={`d${b}`} s={[0.05, Math.hypot(LEG_OUT / bays, H) - 0.1, 0.06]} m={M.black} position={[0, 0, ((b + 0.5) * LEG_OUT) / bays]} rotation={[(b % 2 ? 1 : -1) * Math.atan2(LEG_OUT / bays, H), 0, 0]} />
+                  ))}
+                </group>
+              ))}
+            </Bake>
+            {/* inner telescopic box sliding out of it */}
+            <group ref={(el) => el && (inner.current[i] = el)}>
+              <RB s={[W - 0.12, H - 0.12, 3.4]} r={0.03} m={M.zlGun} position={[0, 0, 1.7]} />
+            </group>
+            {/* jack housing, warning plates, jack and pad at the leg end */}
+            <group ref={(el) => el && (ends.current[i] = el)}>
+              <Bake>
+                <RB s={[0.95, 1.4, 0.95]} r={0.05} m={M.zlGunDark} position={[0, 0.1, 0]} />
+                <Plate w={0.85} h={1.2} m={stripes} position={[0, 0.1, 0.485]} />
+                {[1, -1].map((k) => (
+                  <Plate key={k} w={0.85} h={0.5} m={stripes} position={[k * 0.485, 0.5, 0]} rotation={[0, (k * Math.PI) / 2, 0]} />
+                ))}
+              </Bake>
+              <group ref={(el) => el && (padsG.current[i] = el)}>
+                <group ref={(el) => el && (jacks.current[i] = el)}>
+                  <Cyl r={0.28} l={1.8} m={M.chrome} position={[0, -0.4, 0]} />
+                  <Cyl r={SPEC.outrigger.pad / 2} l={0.18} m={M.lbBlack} position={[0, -1.3, 0]} seg={28} />
+                </group>
               </group>
               <group ref={(el) => el && (mats.current[i] = el)}>
                 <Box s={[3.6, 0.2, 3.6]} m={M.matWood} />
@@ -204,96 +339,11 @@ function Wheels() {
         [-1, 1].map((s) => (
           <group key={`${ai}${s}`} position={[(s * SPEC.track) / 2, SPEC.tyreR, z]} ref={keep(steer.current)} userData={{ z }}>
             <group ref={keep(spin.current)}>
-              <Wheel spec={ZL_TYRE} side={s as 1 | -1} />
+              <Wheel spec={ZL_TYRE} side={s as 1 | -1} rim={M.zlGunDark} />
             </group>
           </group>
         )),
       )}
-    </group>
-  );
-}
-
-/** Small parts that make the carrier read as a truck: cab glazing frames, wipers, mirrors, steps, grilles, lamps,
- *  fenders with lips, deck plates and air tanks, the rear ladder and warning plates. */
-function CarrierDetail() {
-  const L = SPEC.carrierLen;
-  const F = L / 2;
-  const tyreTop = SPEC.tyreR * 2 + 0.08;
-  return (
-    <group>
-      {/* driver's cab (front left) */}
-      <group position={[0.68, 0, F - 1.25]}>
-        {[3.12, 2.08].map((y) => (
-          <Box key={y} s={[1.36, 0.06, 0.03]} m={M.black} position={[0, y, 1.17]} />
-        ))}
-        {[-0.68, 0.68].map((x) => (
-          <Box key={x} s={[0.06, 1.1, 0.03]} m={M.black} position={[x, 2.6, 1.17]} />
-        ))}
-        {[-0.3, 0.3].map((x) => (
-          <Box key={x} s={[0.03, 0.62, 0.02]} m={M.black} position={[x, 2.32, 1.19]} rotation={[0, 0, x > 0 ? 0.5 : -0.5]} />
-        ))}
-        <Box s={[1.52, 0.06, 0.35]} m={M.zlNavy} position={[0, 3.3, 1.25]} />
-        {[-0.45, 0.45].map((x) => (
-          <Box key={x} s={[0.22, 0.12, 0.08]} m={M.lens} position={[x, 3.38, 1.0]} />
-        ))}
-        {/* mirror on its arm, door seam and handle, steps and grab handle */}
-        <Cyl r={0.025} l={0.55} axis="x" m={M.black} position={[0.98, 2.95, 1.0]} seg={6} />
-        <Box s={[0.08, 0.5, 0.26]} m={M.black} position={[1.26, 2.65, 1.0]} />
-        <Box s={[0.01, 1.8, 0.03]} m={M.black} position={[0.755, 2.25, -0.85]} />
-        <Box s={[0.03, 0.04, 0.25]} m={M.chrome} position={[0.77, 2.35, -0.55]} />
-        <Cyl r={0.025} l={1.0} m={M.chrome} position={[0.79, 2.45, -1.05]} seg={8} />
-        {[0.7, 1.2].map((y) => (
-          <Box key={y} s={[0.45, 0.06, 0.7]} m={M.checker} position={[0.95, y, -0.3]} />
-        ))}
-        {[0.72, 1.22].map((y) => (
-          <Box key={y} s={[0.04, 0.5, 0.04]} m={M.black} position={[0.95 + 0.2, y - 0.2, -0.3 + 0.33]} />
-        ))}
-      </group>
-      {/* engine box grille, mirror on the right */}
-      {Array.from({ length: 6 }, (_, i) => (
-        <Box key={i} s={[1.1, 0.05, 0.04]} m={M.black} position={[-0.78, 1.95 + i * 0.13, F - 0.08]} />
-      ))}
-      <Cyl r={0.025} l={0.5} axis="x" m={M.black} position={[-1.6, 2.95, F - 0.3]} seg={6} />
-      <Box s={[0.08, 0.5, 0.26]} m={M.black} position={[-1.85, 2.65, F - 0.3]} />
-      {/* front lamps and warning plate on the bumper */}
-      {[1.25, -1.25].map((x) => (
-        <Box key={x} s={[0.16, 0.1, 0.04]} m={M.amberLight} position={[x, 1.25, F + 0.02]} />
-      ))}
-      <StripePlate w={1.6} h={0.3} position={[0, 0.95, F + 0.06]} />
-      {/* fenders: top plate already, add the outer lips */}
-      {SPEC.axles.map((z) =>
-        [1, -1].map((sd) => <Box key={`${z}${sd}`} s={[0.04, 0.28, 1.8]} m={M.black} position={[sd * (SPEC.track / 2 + 0.31), tyreTop - 0.12, z]} />),
-      )}
-      {/* deck plating and air tanks on the front deck (under the boom rest) */}
-      <Box s={[2.9, 0.04, 5.0]} m={M.checker} position={[0, DECK + 0.02, 5.7]} />
-      {[1.15, -1.15].map((x) => (
-        <group key={x}>
-          <Cyl r={0.22} l={2.2} axis="z" m={M.greyLight} position={[x, DECK + 0.26, 5.6]} seg={16} />
-          {[4.7, 6.5].map((z) => (
-            <Box key={z} s={[0.5, 0.06, 0.08]} m={M.black} position={[x, DECK + 0.03, z]} />
-          ))}
-        </group>
-      ))}
-      {/* boom rest over the front deck */}
-      <group position={[0, DECK, 7.6]}>
-        {[-0.9, 0.9].map((x) => (
-          <Box key={x} s={[0.2, 1.1, 0.2]} m={M.zlNavy} position={[x, 0.55, 0]} />
-        ))}
-        <Box s={[2.0, 0.18, 0.4]} m={M.zlNavy} position={[0, 1.1, 0]} />
-        <Box s={[1.4, 0.06, 0.42]} m={M.rubber} position={[0, 1.22, 0]} />
-      </group>
-      {/* rear: lamps, ladder up the power pack, warning plate, grille */}
-      {[1.1, -1.1].map((x) => (
-        <group key={x}>
-          <Box s={[0.32, 0.15, 0.04]} m={M.redLamp} position={[x, 1.25, -F - 0.02]} />
-          <Box s={[0.16, 0.15, 0.04]} m={M.amberLight} position={[x * 0.62, 1.25, -F - 0.02]} />
-        </group>
-      ))}
-      <StripePlate w={1.6} h={0.3} position={[0, 0.95, -F - 0.06]} rotation={[0, Math.PI, 0]} />
-      <Ladder h={2.3} w={0.45} position={[0, 1.15, -F - 0.12]} rotation={[0, Math.PI / 2, 0]} />
-      {Array.from({ length: 5 }, (_, i) => (
-        <Box key={i} s={[2.2, 0.05, 0.04]} m={M.black} position={[0, DECK + 0.2 + i * 0.15, -F + 0.18]} />
-      ))}
     </group>
   );
 }
@@ -305,7 +355,10 @@ function Upper() {
   return (
     <group>
       <Cyl r={2.0} l={0.3} m={M.lbBlack} position={[0, DECK + 0.15, 0]} seg={48} />
-      <RB s={[3.4, 1.3, 11.5]} r={0.08} m={M.zlNavy} position={[0, DECK + 0.95, -3.2]} />
+      <RB s={[3.4, 1.3, 11.5]} r={0.08} m={M.zlSilver} position={[0, DECK + 0.95, -3.2]} />
+      <Text position={[1.71, DECK + 1.0, -6.5]} rotation={[0, Math.PI / 2, 0]} fontSize={0.4} color="#1d6fb8" fontWeight={700}>
+        ZOOMLION
+      </Text>
       {/* boom foot brackets and pin */}
       {[-1, 1].map((s) => (
         <RB key={s} s={[0.3, 2.4, 2.6]} r={0.05} m={M.zlGreen} position={[s * 1.35, P.y - 0.9, P.z]} />
@@ -322,7 +375,7 @@ function Upper() {
       ))}
       {/* power pack on the right, the operator's cab on the left front */}
       <RB s={[1.5, 1.8, 4.0]} r={0.1} m={M.lbWhite} position={[-2.3, DECK + 1.5, -4.2]} />
-      <Box s={[1.52, 0.12, 4.02]} m={M.zlNavy} position={[-2.3, DECK + 1.1, -4.2]} />
+      <Box s={[1.52, 0.12, 4.02]} m={M.zlGun} position={[-2.3, DECK + 1.1, -4.2]} />
       <group position={[2.15, DECK + 0.6, 1.0]}>
         <RB s={[1.15, 2.1, 2.5]} r={0.1} m={M.lbWhite} position={[0, 1.05, 0]} />
         <mesh position={[0, 1.35, 1.26]} rotation={[-0.2, 0, 0]} material={M.glass}>
@@ -334,7 +387,7 @@ function Upper() {
         <mesh position={[0, 2.11, 0.4]} material={M.glass}>
           <boxGeometry args={[0.9, 0.02, 1.3]} />
         </mesh>
-        <Box s={[1.17, 0.1, 2.52]} m={M.zlNavy} position={[0, 0.35, 0]} />
+        <Box s={[1.17, 0.1, 2.52]} m={M.zlGun} position={[0, 0.35, 0]} />
         <Cyl r={0.08} l={0.14} m={M.amberLight} position={[0, 2.2, -0.9]} />
       </group>
       <Box s={[0.9, 0.08, 1.4]} m={M.checker} position={[1.75, DECK + 0.62, 2.9]} />
@@ -385,7 +438,7 @@ function UpperDetail() {
           <Cyl r={0.12} l={0.06} m={M.black} position={[x, DECK + 3.2, -5.6]} seg={12} />
         </group>
       ))}
-      <Text position={[-3.07, DECK + 2.05, -4.2]} rotation={[0, -Math.PI / 2, 0]} fontSize={0.34} color="#1e3560" fontWeight={700}>
+      <Text position={[-3.07, DECK + 2.05, -4.2]} rotation={[0, -Math.PI / 2, 0]} fontSize={0.34} color="#1d6fb8" fontWeight={700}>
         ZOOMLION
       </Text>
       {/* walkway plating and handrail along the right side, ladder from the carrier deck */}
@@ -398,26 +451,34 @@ function UpperDetail() {
   );
 }
 
-/** Counterweight tray and slabs: one 60 t slab per step, shown as the selected counterweight is fitted. */
+/** Counterweight: two dark ballast stacks either side of the boom foot on a common tray, yellow/black hazard strips
+ *  on the corners (as on the site photos); one slab pair per step, shown as the selected counterweight is fitted. */
 function Counterweight() {
   const slabs = useRef<THREE.Group[]>([]);
   const n = 6;
   const per = SPEC.counterweights[SPEC.counterweights.length - 1] / n;
+  const stripes = useStripeMat();
   useFrame(() => {
     const share = cr.cwTarget !== cr.cw ? cr.cw + (cr.cwTarget - cr.cw) * cr.cwT : cr.cw;
     slabs.current.forEach((g, i) => g && (g.visible = share > per * (i + 0.5)));
   });
   return (
     <group position={[0, DECK + 1.6, SPEC.cwArm]}>
-      <RB s={[6.0, 0.5, 4.4]} r={0.06} m={M.lbGrey} position={[0, 0, 0]} />
+      <RB s={[6.4, 0.5, 4.4]} r={0.06} m={M.zlGunDark} position={[0, 0, 0]} />
       {Array.from({ length: n }, (_, i) => (
         <group key={i} ref={(el) => el && (slabs.current[i] = el)} position={[0, 0.65 + i * 0.78, 0]}>
-          <RB s={[5.8, 0.74, 4.2]} r={0.06} m={i === n - 1 ? M.zlGreen : M.zlNavy} />
-          {i === 1 && (
-            <Text position={[0, 0, -2.11]} rotation={[0, Math.PI, 0]} fontSize={0.45} color="#ffffff" fontWeight={700}>
-              ZAT40000H
-            </Text>
-          )}
+          <Bake>
+            {[-1, 1].map((k) => (
+              <group key={k} position={[k * 1.6, 0, 0]}>
+                <RB s={[3.0, 0.74, 4.2]} r={0.05} m={M.ballast} />
+                {[-1, 1].map((e) => (
+                  <Plate key={e} w={0.35} h={0.7} m={stripes} position={[k * 1.32, 0, e * 2.105]} rotation={[0, e > 0 ? 0 : Math.PI, 0]} />
+                ))}
+                <Plate w={0.35} h={0.7} m={stripes} position={[k * 1.505, 0, 1.9]} rotation={[0, (k * Math.PI) / 2, 0]} />
+                <Plate w={0.35} h={0.7} m={stripes} position={[k * 1.505, 0, -1.9]} rotation={[0, (k * Math.PI) / 2, 0]} />
+              </group>
+            ))}
+          </Bake>
         </group>
       ))}
     </group>
@@ -461,7 +522,7 @@ function Section({ i }: { i: number }) {
       {i === 0 &&
         [1, -1].map((side) => (
           <group key={side}>
-            <Box s={[0.02, 0.5, s.len * 0.75]} m={M.zlNavy} position={[(side * (s.w + 0.04)) / 2, -s.h * 0.28, s.len * 0.42]} />
+            <Box s={[0.02, 0.5, s.len * 0.75]} m={M.zlGunDark} position={[(side * (s.w + 0.04)) / 2, -s.h * 0.28, s.len * 0.42]} />
             <Text position={[(side * (s.w + 0.05)) / 2, s.h * 0.15, s.len * 0.55]} rotation={[0, (side * Math.PI) / 2, 0]} fontSize={1.0} color="#111111" fontWeight={700}>
               ZAT40000H7
             </Text>
@@ -533,8 +594,8 @@ function Boom() {
   const wind = useRef<THREE.Group>(null);
   const parts = useRef<THREE.Group[]>([]);
   const luff = useRef<THREE.Group>(null);
-  const rod = useRef<THREE.Mesh>(null);
-  const guys = useRef<THREE.Mesh[]>([]);
+  const rods = useRef<THREE.Mesh[]>([]);
+  const guys = useRef<THREE.Group[]>([]);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3() }), []);
   const masts = useRef<THREE.Group[]>([]);
   const tips = useMemo(() => [new THREE.Vector3(), new THREE.Vector3()], []);
@@ -602,20 +663,30 @@ function Boom() {
     l.position.copy(tmp.a);
     const d = tmp.a.distanceTo(tmp.b);
     l.lookAt(l.parent!.localToWorld(tmp.b.clone()));
-    rod.current!.scale.y = Math.max(0.1, d - 7.4);
-    rod.current!.position.z = 7.4 + (d - 7.4) / 2;
+    for (const r of rods.current) {
+      r.scale.y = Math.max(0.1, d - 7.4);
+      r.position.z = 7.4 + (d - 7.4) / 2;
+    }
   });
   const windLen = [51, 30, 30];
   return (
     <group position={[0, SPEC.pin.y, SPEC.pin.z]}>
       <group ref={luff}>
-        <mesh position={[0, 0, 3.7]} rotation={[Math.PI / 2, 0, 0]} material={M.steel} castShadow>
-          <cylinderGeometry args={[0.62, 0.62, 7.4, 28]} />
-        </mesh>
-        <Cyl r={0.35} l={1.8} axis="x" m={M.steel} />
-        <mesh ref={rod} rotation={[Math.PI / 2, 0, 0]} material={M.chrome} castShadow>
-          <cylinderGeometry args={[0.42, 0.42, 1, 22]} />
-        </mesh>
+        {/* two luffing cylinders side by side */}
+        {[-0.85, 0.85].map((x, k) => (
+          <group key={x} position={[x, 0, 0]}>
+            <mesh position={[0, 0, 3.7]} rotation={[Math.PI / 2, 0, 0]} material={M.zlLuff} castShadow>
+              <cylinderGeometry args={[0.5, 0.5, 7.4, 24]} />
+            </mesh>
+            <mesh position={[0, 0, 7.3]} rotation={[Math.PI / 2, 0, 0]} material={M.zlGunDark}>
+              <cylinderGeometry args={[0.56, 0.56, 0.3, 24]} />
+            </mesh>
+            <mesh ref={(el) => el && (rods.current[k] = el)} rotation={[Math.PI / 2, 0, 0]} material={M.chrome} castShadow>
+              <cylinderGeometry args={[0.34, 0.34, 1, 20]} />
+            </mesh>
+          </group>
+        ))}
+        <Cyl r={0.35} l={2.6} axis="x" m={M.steel} />
       </group>
       {[0, 1].map((i) => (
         <mesh key={i} ref={(el) => el && (leads.current[i] = el)} material={M.rope}>
@@ -641,9 +712,14 @@ function Boom() {
           </group>
         ))}
         {[0, 1, 2, 3].map((i) => (
-          <mesh key={i} ref={(el) => el && (guys.current[i] = el)} material={M.rope}>
-            <cylinderGeometry args={[0.05, 0.05, 1, 5]} />
-          </mesh>
+          // a guy is a bundle of parallel pendant ropes
+          <group key={i} ref={(el) => el && (guys.current[i] = el)}>
+            {[-0.21, -0.07, 0.07, 0.21].map((x) => (
+              <mesh key={x} position={[x, 0, 0]} material={M.rope}>
+                <cylinderGeometry args={[0.035, 0.035, 1, 6]} />
+              </mesh>
+            ))}
+          </group>
         ))}
         <group ref={head}>
           <Bake>
@@ -654,7 +730,7 @@ function Boom() {
             {windLen.map((len, i) => (
               <group key={i} ref={(el) => el && (parts.current[i] = el)} position={[0, 0, windLen.slice(0, i).reduce((a, b) => a + b, 0)]}>
                 <Lattice len={len} w={2.4} m={M.zlGreen} />
-                {i === 0 && <Box s={[2.6, 0.2, 0.6]} m={M.zlNavy} position={[0, -0.6, 0.5]} />}
+                {i === 0 && <Box s={[2.6, 0.2, 0.6]} m={M.zlGunDark} position={[0, -0.6, 0.5]} />}
               </group>
             ))}
           </group>

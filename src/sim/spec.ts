@@ -108,7 +108,7 @@ const ZOOMLION: Spec = {
   outrigger: {
     full: { x: 8.0, z: 8.0 }, // 16 × 16 m
     mid: { x: 5.5, z: 8.0 },
-    retracted: { x: 2.4, z: 8.0 },
+    retracted: { x: 1.85, z: 8.0 }, // swing-out legs folded along the chassis
     pad: 2.2, // est.
     stroke: 1.0,
     jackRate: 0.04,
