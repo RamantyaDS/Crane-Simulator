@@ -875,3 +875,12 @@ button.on {
     align-items: center;
   }
 }
+.levers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.levers button {
+  padding: 7px 4px;
+  font-size: 12px;
+}

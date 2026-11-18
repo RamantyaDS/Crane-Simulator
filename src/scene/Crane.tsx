@@ -50,9 +50,37 @@ function useDiamond() {
 function CarrierBody() {
   const diamond = useDiamond();
   const L = SPEC.carrierLen;
+  const R = 0.98; // arch radius
+  const hull = useMemo(() => {
+    const s = new THREE.Shape();
+    const f = SPEC.axles[0];
+    const r1 = SPEC.axles[1];
+    const r2 = SPEC.axles[2];
+    const top = DECK - 0.02;
+    const bot = 0.62;
+    s.moveTo(-L / 2, top);
+    s.lineTo(L / 2, top);
+    s.lineTo(L / 2, 1.15);
+    s.lineTo(L / 2 - 0.9, bot);
+    s.lineTo(f + R, bot);
+    s.absarc(f, 0.81, R, 0, Math.PI, false);
+    s.lineTo(r1 + R, bot);
+    s.absarc(r1, 0.81, R, 0, Math.PI * 0.62, false);
+    s.lineTo((r1 + r2) / 2, 1.6);
+    s.absarc(r2, 0.81, R, Math.PI * 0.38, Math.PI, false);
+    s.lineTo(-L / 2 + 0.9, bot);
+    s.lineTo(-L / 2, 1.15);
+    s.lineTo(-L / 2, top);
+    const g = new THREE.ExtrudeGeometry(s, { depth: 2.5, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05, bevelSegments: 2, curveSegments: 20 });
+    g.translate(0, 0, -1.25);
+    g.rotateY(-Math.PI / 2);
+    g.computeVertexNormals();
+    return g;
+  }, [L]);
   return (
     <group>
-      <RB s={[2.5, 0.95, L - 0.6]} r={0.06} m={M.lbWhite} position={[0, 1.25, 0]} />
+      {/* carrier hull: sloped nose and tail for the approach angles, arches over the front axle and the rear tandem */}
+      <mesh geometry={hull} material={M.lbWhite} castShadow receiveShadow />
       {/* red diamond-plate side decks */}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * 1.15, DECK + 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -188,28 +216,73 @@ function Wheels() {
 
 // ---------- upper ----------
 
+/** A side profile (points in z, y) extruded across x, centred, with a small bevel. */
+function useProfile(pts: [number, number][], width: number, bevel = 0.03) {
+  return useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(...pts[0]);
+    for (const p of pts.slice(1)) s.lineTo(...p);
+    const g = new THREE.ExtrudeGeometry(s, { depth: width - bevel * 2, bevelEnabled: true, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 2 });
+    g.translate(0, 0, -(width - bevel * 2) / 2);
+    g.rotateY(-Math.PI / 2);
+    g.computeVertexNormals();
+    return g;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, bevel]);
+}
+
 function Cab() {
-  // operator's cab on the left of the boom: white shell, big tinted glass, red stripe
+  // Link-Belt RT cab on the left of the boom: a tall shell with a raked windscreen that runs down to the floor, a
+  // skylight for watching the load, red stripe, step and handrail. Glass set into a white frame.
+  const shell = useProfile(
+    [
+      [-1.15, 0],
+      [0.95, 0],
+      [1.2, 0.55],
+      [0.98, 1.95],
+      [-1.0, 1.95],
+      [-1.15, 1.8],
+    ],
+    0.98,
+    0.05,
+  );
+  const glassSide = useProfile(
+    [
+      [-0.55, 0.75],
+      [0.92, 0.75],
+      [0.88, 1.75],
+      [-0.55, 1.75],
+    ],
+    1.0,
+    0,
+  );
   return (
-    <group position={[1.15, DECK + 0.35, 1.1]}>
-      <RB s={[0.95, 1.85, 2.3]} r={0.12} m={M.lbWhite} position={[0, 0.95, 0]} />
-      <Box s={[0.97, 0.12, 2.32]} m={M.lbRed} position={[0, 0.25, 0]} />
-      {/* windscreen (raked), side glass, roof window */}
-      <Box s={[0.85, 1.25, 0.03]} m={M.glass} position={[0, 1.15, 1.17]} rotation={[0.22, 0, 0]} />
-      <Box s={[0.03, 1.1, 1.7]} m={M.glass} position={[0.49, 1.2, 0.15]} />
-      <Box s={[0.03, 1.1, 1.7]} m={M.glass} position={[-0.49, 1.2, 0.15]} />
-      <Box s={[0.7, 0.03, 1.4]} m={M.glass} position={[0, 1.89, 0.3]} />
-      <Box s={[0.02, 0.6, 0.015]} m={M.lbBlack} position={[0.1, 1.15, 1.2]} rotation={[0.22, 0, 0.5]} />
+    <group position={[1.15, DECK + 0.35, 1.0]}>
+      <mesh geometry={shell} material={M.lbWhite} castShadow receiveShadow />
+      <mesh geometry={glassSide} material={M.glass} />
+      {/* windscreen down the raked front, skylight, wiper */}
+      <mesh position={[0, 1.2, 1.1]} rotation={[-0.16, 0, 0]} material={M.glass}>
+        <boxGeometry args={[0.86, 1.45, 0.02]} />
+      </mesh>
+      <mesh position={[0, 1.97, 0.35]} material={M.glass}>
+        <boxGeometry args={[0.8, 0.02, 1.1]} />
+      </mesh>
+      <Box s={[0.02, 0.7, 0.015]} m={M.lbBlack} position={[0.12, 1.2, 1.13]} rotation={[-0.16, 0, 0.45]} />
+      <Box s={[1.0, 0.1, 2.2]} m={M.lbRed} position={[0, 0.48, -0.1]} />
+      {/* door frame on the left, step and handrail */}
+      <Box s={[0.02, 1.3, 0.04]} m={M.lbGrey} position={[0.51, 1.15, -0.6]} />
+      <Box s={[0.3, 0.04, 0.5]} m={M.checker} position={[0.6, -0.15, -0.2]} />
+      <Cyl r={0.018} l={1.0} m={M.steel} position={[0.53, 1.0, -0.7]} />
       {/* seat and joysticks seen through the glass */}
-      <RB s={[0.5, 0.5, 0.5]} r={0.06} m={M.seat} position={[0, 0.65, -0.1]} />
-      <RB s={[0.5, 0.7, 0.12]} r={0.05} m={M.seat} position={[0, 1.05, -0.38]} />
+      <RB s={[0.5, 0.5, 0.5]} r={0.06} m={M.seat} position={[0, 0.7, -0.15]} />
+      <RB s={[0.5, 0.7, 0.12]} r={0.05} m={M.seat} position={[0, 1.1, -0.42]} />
       {[-0.32, 0.32].map((x) => (
-        <Cyl key={x} r={0.02} l={0.25} m={M.lbBlack} position={[x, 0.85, 0.15]} />
+        <Cyl key={x} r={0.02} l={0.25} m={M.lbBlack} position={[x, 0.9, 0.1]} />
       ))}
-      {/* lights and beacon */}
-      <Cyl r={0.07} l={0.12} m={M.amberLight} position={[0, 1.95, -0.7]} />
+      {/* beacon and work lights on the roof */}
+      <Cyl r={0.07} l={0.12} m={M.amberLight} position={[0, 2.04, -0.75]} />
       {[-0.25, 0.25].map((x) => (
-        <group key={x} position={[x, 1.75, 1.18]}>
+        <group key={x} position={[x, 1.86, 1.0]}>
           <RB s={[0.16, 0.12, 0.1]} r={0.03} m={M.lbBlack} />
           <Cyl r={0.045} l={0.02} axis="z" m={M.lens} position={[0, 0, 0.06]} />
         </group>
@@ -300,53 +373,70 @@ function CounterweightShow() {
 // ---------- boom ----------
 
 const SECTIONS = [
-  { w: 1.05, h: 1.25, len: 12.4 },
-  { w: 0.97, h: 1.13, len: 11.9 },
-  { w: 0.89, h: 1.02, len: 11.9 },
-  { w: 0.81, h: 0.91, len: 11.9 },
-  { w: 0.73, h: 0.8, len: 11.9 },
-  { w: 0.65, h: 0.7, len: 11.9 },
+  { w: 1.05, h: 1.3, len: 12.4 },
+  { w: 0.95, h: 1.17, len: 11.9 },
+  { w: 0.86, h: 1.05, len: 11.9 },
+  { w: 0.77, h: 0.94, len: 11.9 },
+  { w: 0.69, h: 0.84, len: 11.9 },
+  { w: 0.61, h: 0.75, len: 11.9 },
 ];
 
-/** Lattice truss (fly): four chords with diagonal lacing, extruded along +z. */
-function Lattice({ len, w = 0.62 }: { len: number; w?: number }) {
-  const geo = useMemo(() => {
-    const parts: THREE.BufferGeometry[] = [];
-    const chord = (x: number, y: number) => {
-      const g = new THREE.CylinderGeometry(0.045, 0.045, len, 6);
-      g.rotateX(Math.PI / 2);
-      g.translate(x, y, len / 2);
-      parts.push(g);
-    };
-    const h = w / 2;
-    for (const x of [-h, h]) for (const y of [-h, h]) chord(x, y);
-    const n = Math.max(2, Math.round(len / w));
-    for (let i = 0; i < n; i++) {
-      const z0 = (i * len) / n;
-      const z1 = ((i + 1) * len) / n;
-      for (const [ax, ay, bx, by] of [
-        [-h, -h, h, -h],
-        [-h, h, h, h],
-        [-h, -h, -h, h],
-        [h, -h, h, h],
-      ]) {
-        const a = new THREE.Vector3(ax, ay, z0);
-        const b = new THREE.Vector3(bx, by, z1);
-        const g = new THREE.CylinderGeometry(0.022, 0.022, a.distanceTo(b), 4);
-        g.translate(0, a.distanceTo(b) / 2, 0);
-        g.applyMatrix4(new THREE.Matrix4().lookAt(new THREE.Vector3(), b.clone().sub(a), new THREE.Vector3(0, 1, 0)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)));
-        g.translate(a.x, a.y, a.z);
-        parts.push(g);
-      }
+/** Link-Belt boom section: flat top with chamfered corners, straight sides, a round "U" bottom; extruded along +z. */
+function sectionGeo(w: number, h: number, len: number) {
+  const s = new THREE.Shape();
+  const c = w * 0.12; // top chamfer
+  const r = w / 2; // bottom radius
+  const top = h / 2;
+  const side = top - (h - r); // where the round bottom starts
+  s.moveTo(-w / 2 + c, top);
+  s.lineTo(w / 2 - c, top);
+  s.lineTo(w / 2, top - c);
+  s.lineTo(w / 2, side);
+  s.absarc(0, side, r, 0, -Math.PI, true);
+  s.lineTo(-w / 2, top - c);
+  s.lineTo(-w / 2 + c, top);
+  const g = new THREE.ExtrudeGeometry(s, { depth: len, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.02, bevelSegments: 1, curveSegments: 14 });
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Triangular lattice (fly): two bottom chords and one top chord with zig-zag lacing, along +z. */
+function latticeGeo(len: number, w: number) {
+  const parts: THREE.BufferGeometry[] = [];
+  const h = w * 0.85;
+  const P = [new THREE.Vector2(-w / 2, -h / 2), new THREE.Vector2(w / 2, -h / 2), new THREE.Vector2(0, h / 2)];
+  const tube = (a: THREE.Vector3, b: THREE.Vector3, r: number) => {
+    const d = a.distanceTo(b);
+    const g = new THREE.CylinderGeometry(r, r * 0.85, d, 6);
+    g.translate(0, d / 2, 0);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize())));
+    g.translate(a.x, a.y, a.z);
+    parts.push(g);
+  };
+  for (const p of P) tube(new THREE.Vector3(p.x, p.y, 0), new THREE.Vector3(p.x, p.y, len), 0.04);
+  const n = Math.max(3, Math.round(len / (w * 1.1)));
+  for (let i = 0; i < n; i++) {
+    const z0 = (i * len) / n;
+    const z1 = ((i + 1) * len) / n;
+    for (let k = 0; k < 3; k++) {
+      const a = P[k];
+      const b = P[(k + 1) % 3];
+      const up = i % 2 === 0;
+      tube(new THREE.Vector3(a.x, a.y, up ? z0 : z1), new THREE.Vector3(b.x, b.y, up ? z1 : z0), 0.018);
     }
-    const merged = mergeAll(parts);
-    return merged;
-  }, [len, w]);
-  return <mesh geometry={geo} material={M.lbBlack} castShadow />;
+  }
+  // end frames
+  for (const z of [0, len]) for (let k = 0; k < 3; k++) tube(new THREE.Vector3(P[k].x, P[k].y, z), new THREE.Vector3(P[(k + 1) % 3].x, P[(k + 1) % 3].y, z), 0.03);
+  return mergeAll(parts);
+}
+
+function Lattice({ len, w = 0.62, m = M.lbBlack }: { len: number; w?: number; m?: THREE.Material }) {
+  const geo = useMemo(() => latticeGeo(len, w), [len, w]);
+  return <mesh geometry={geo} material={m} castShadow />;
 }
 
 function mergeAll(parts: THREE.BufferGeometry[]) {
-  // tiny local merge (avoids an import cycle with Bake): positions and normals only
+  // tiny local merge: positions and normals only
   let n = 0;
   const flat = parts.map((g) => {
     const ng = g.index ? g.toNonIndexed() : g;
@@ -367,6 +457,95 @@ function mergeAll(parts: THREE.BufferGeometry[]) {
   return out;
 }
 
+/** One telescopic section: the formed tube, wear pads at its mouth, the section number. */
+function Section({ i }: { i: number }) {
+  const s = SECTIONS[i];
+  const geo = useMemo(() => sectionGeo(s.w, s.h, s.len), [s]);
+  const collar = useMemo(() => sectionGeo(s.w + 0.07, s.h + 0.07, 0.3), [s]);
+  const y = -0.05 - i * 0.03;
+  const z0 = i === 0 ? -0.5 : 0;
+  return (
+    <group position={[0, y, z0]}>
+      <mesh geometry={geo} material={M.lbWhite} castShadow receiveShadow />
+      {/* collar with wear pads at the mouth of every section that has another inside */}
+      {i < SECTIONS.length - 1 && (
+        <group position={[0, 0, s.len - 0.18]}>
+          <mesh geometry={collar} material={M.lbGrey} castShadow />
+          {[-1, 1].map((k) => (
+            <Box key={k} s={[0.03, 0.22, 0.24]} m={M.lbBlack} position={[k * (s.w / 2 + 0.05), s.h * 0.2, 0.15]} />
+          ))}
+          <Box s={[s.w * 0.5, 0.03, 0.24]} m={M.lbBlack} position={[0, s.h / 2 + 0.05, 0.15]} />
+        </group>
+      )}
+      {i === 0 && (
+        <>
+          {/* red swoosh band and the Link-Belt name on both sides */}
+          {[1, -1].map((side) => (
+            <group key={side}>
+              <Box s={[0.01, 0.12, s.len * 0.82]} m={M.lbRed} position={[(side * (s.w + 0.035)) / 2, -s.h * 0.05, s.len * 0.47]} />
+              <Box s={[0.01, 0.05, s.len * 0.82]} m={M.lbRed} position={[(side * (s.w + 0.035)) / 2, -s.h * 0.05 - 0.13, s.len * 0.47]} />
+              <Text position={[(side * (s.w + 0.04)) / 2, s.h * 0.2, s.len * 0.55]} rotation={[0, (side * Math.PI) / 2, 0]} fontSize={0.5} color="#c3161c" fontWeight={700} letterSpacing={0.02}>
+                Link-Belt
+              </Text>
+            </group>
+          ))}
+          {/* luffing cylinder lug under the base and the foot pin bosses */}
+          <Box s={[0.5, 0.45, 0.8]} m={M.lbWhite} position={[0, -s.h / 2 - 0.2, 5.1]} />
+          {[-1, 1].map((k) => (
+            <Cyl key={k} r={0.28} l={0.08} axis="x" m={M.lbGrey} position={[k * (s.w / 2 + 0.04), -0.1, 0.5]} />
+          ))}
+          {/* rope guide rollers on top */}
+          {[1.5, 6, 10.5].map((z) => (
+            <Cyl key={z} r={0.08} l={0.5} axis="x" m={M.steel} position={[0, s.h / 2 + 0.08, z]} />
+          ))}
+        </>
+      )}
+    </group>
+  );
+}
+
+/** Boom head: two side plates with a rounded nose, the sheave stack between them, the aux sheave and anemometer. */
+function Head() {
+  const plate = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(-0.9, -0.45);
+    s.lineTo(0.2, -0.5);
+    s.absarc(0.35, -0.15, 0.42, -Math.PI / 2, Math.PI / 2, false);
+    s.lineTo(-0.9, 0.45);
+    s.lineTo(-0.9, -0.45);
+    const g = new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: false, curveSegments: 16 });
+    g.rotateY(-Math.PI / 2); // shape x → z, extrusion → x
+    g.translate(0.03, 0, 0);
+    return g;
+  }, []);
+  return (
+    <group>
+      {[-0.31, 0.31].map((x) => (
+        <mesh key={x} geometry={plate} material={M.lbBlack} position={[x, 0, 0]} castShadow />
+      ))}
+      <Box s={[0.6, 0.12, 1.0]} m={M.lbBlack} position={[0, 0.39, -0.4]} />
+      {/* sheave stack: grooved wheels inside the plates */}
+      {[-0.2, -0.1, 0, 0.1, 0.2].map((x) => (
+        <group key={x} position={[x, -0.15, 0.35]}>
+          <Cyl r={0.4} l={0.07} axis="x" m={M.steel} seg={28} />
+          <Cyl r={0.3} l={0.08} axis="x" m={M.lbGrey} seg={20} />
+        </group>
+      ))}
+      <Cyl r={0.07} l={0.7} axis="x" m={M.chrome} position={[0, -0.15, 0.35]} />
+      {/* auxiliary (rooster) sheave and the anemometer with its beacon */}
+      <group position={[0, 0.35, 0.65]}>
+        <Box s={[0.1, 0.25, 0.4]} m={M.lbBlack} position={[0, 0, 0]} />
+        <Cyl r={0.18} l={0.08} axis="x" m={M.steel} position={[0, 0.05, 0.15]} />
+      </group>
+      <Cyl r={0.015} l={0.6} m={M.lbBlack} position={[0.25, 0.75, -0.6]} />
+      <Cyl r={0.05} l={0.08} m={M.amberLight} position={[0.25, 1.08, -0.6]} />
+      {[0, 2.1, 4.2].map((a) => (
+        <Box key={a} s={[0.16, 0.012, 0.03]} m={M.lbBlack} position={[0.25 + Math.cos(a) * 0.08, 0.98, -0.6 + Math.sin(a) * 0.08]} rotation={[0, -a, 0]} />
+      ))}
+    </group>
+  );
+}
+
 function Boom() {
   const pivot = useRef<THREE.Group>(null);
   const secs = useRef<THREE.Group[]>([]);
@@ -377,6 +556,7 @@ function Boom() {
   const fly168 = useRef<THREE.Group>(null);
   const luff = useRef<THREE.Group>(null);
   const luffRod = useRef<THREE.Mesh>(null);
+  const rope = useRef<THREE.Mesh>(null);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3() }), []);
   useFrame(() => {
     // angle, with the sag of the boom under load, and the collapse when it fails
@@ -384,9 +564,14 @@ function Boom() {
     pivot.current!.rotation.x = -(cr.angle - sag * 0.6) + cr.boomBend * 0.9;
     // pin & latch: the five telescopic sections share the extension
     const ext = (cr.length - SPEC.boomMin) / 5;
-    secs.current.forEach((g, i) => g && (g.position.z = i === 0 ? 0 : 0.35 + ext * i));
-    head.current!.position.z = cr.length + SPEC.headLen - 0.25;
+    secs.current.forEach((g, i) => g && (g.position.z = i === 0 ? 0 : 0.25 + ext * i));
+    const headZ = cr.length + SPEC.headLen - 0.25;
+    head.current!.position.z = headZ;
     craneObj.head = head.current;
+    // the hoist rope runs from the winch along the top of the boom to the head sheaves
+    const r = rope.current!;
+    r.scale.y = headZ + 1.6;
+    r.position.z = (headZ - 1.6) / 2;
     // fly: erected in front of the head with its offset, or folded along the base section
     const erect = cr.flyTarget > 0 ? cr.flyT : 1 - cr.flyT;
     const showLen = cr.flyTarget > 0 ? cr.flyTarget : cr.fly;
@@ -400,62 +585,56 @@ function Boom() {
     // luffing cylinder from the upper to the boom (both points in the pin frame, before the boom's rotation)
     tmp.a.set(0, DECK + 0.7 - SPEC.pin.y, 1.9 - SPEC.pin.z);
     const ang = cr.angle - sag * 0.6 - cr.boomBend * 0.9;
-    tmp.b.set(0, -0.45 * Math.cos(ang) + 4.6 * Math.sin(ang), 4.6 * Math.cos(ang) + 0.45 * Math.sin(ang));
+    tmp.b.set(0, -0.85 * Math.cos(ang) + 4.6 * Math.sin(ang), 4.6 * Math.cos(ang) + 0.85 * Math.sin(ang));
     const l = luff.current!;
     l.position.copy(tmp.a);
     const d = tmp.a.distanceTo(tmp.b);
-    const world = l.parent!.localToWorld(tmp.b.clone());
-    l.lookAt(world);
-    luffRod.current!.scale.y = Math.max(0.1, d - 2.4);
-    luffRod.current!.position.z = 2.4 + (d - 2.4) / 2;
+    l.lookAt(l.parent!.localToWorld(tmp.b.clone()));
+    luffRod.current!.scale.y = Math.max(0.1, d - 2.6);
+    luffRod.current!.position.z = 2.6 + (d - 2.6) / 2;
   });
   return (
     <group position={[0, SPEC.pin.y, SPEC.pin.z]}>
-      {/* luffing cylinder (in the upper's frame, pointing at the boom) */}
+      {/* luffing cylinder: white barrel, chrome rod, trunnion at the base */}
       <group ref={luff}>
-        <mesh position={[0, 0, 1.2]} rotation={[Math.PI / 2, 0, 0]} material={M.lbWhite} castShadow>
-          <cylinderGeometry args={[0.24, 0.24, 2.4, 20]} />
+        <mesh position={[0, 0, 1.3]} rotation={[Math.PI / 2, 0, 0]} material={M.lbWhite} castShadow>
+          <cylinderGeometry args={[0.27, 0.27, 2.6, 24]} />
         </mesh>
+        <mesh position={[0, 0, 2.62]} rotation={[Math.PI / 2, 0, 0]} material={M.lbGrey}>
+          <cylinderGeometry args={[0.3, 0.3, 0.12, 24]} />
+        </mesh>
+        <Cyl r={0.14} l={0.8} axis="x" m={M.steel} />
         <mesh ref={luffRod} rotation={[Math.PI / 2, 0, 0]} material={M.chrome} castShadow>
-          <cylinderGeometry args={[0.15, 0.15, 1, 16]} />
+          <cylinderGeometry args={[0.17, 0.17, 1, 18]} />
         </mesh>
       </group>
       <group ref={pivot}>
-        {SECTIONS.map((s, i) => (
+        {SECTIONS.map((_, i) => (
           <group key={i} ref={(el) => el && (secs.current[i] = el)}>
-            <RB s={[s.w, s.h, s.len]} r={0.12} m={M.lbWhite} position={[0, -0.05 - i * 0.02, s.len / 2 - (i === 0 ? 0.3 : 0)]} />
-            {i === 0 && (
-              <>
-                <Box s={[s.w + 0.01, 0.16, s.len * 0.8]} m={M.lbRed} position={[0, -0.05, s.len * 0.45]} />
-                {[1, -1].map((side) => (
-                  <Text key={side} position={[(side * (s.w + 0.02)) / 2, 0.25, s.len * 0.55]} rotation={[0, (side * Math.PI) / 2, 0]} fontSize={0.42} color="#c3161c" fontWeight={700}>
-                    Link-Belt
-                  </Text>
-                ))}
-              </>
-            )}
-            {i > 0 && <Box s={[s.w + 0.01, 0.08, 0.5]} m={M.lbBlack} position={[0, -0.05 - i * 0.02, s.len - 0.4]} />}
+            <Section i={i} />
           </group>
         ))}
-        {/* stowed fly folded along the right of the base section */}
-        <group ref={flyStow} position={[-0.95, -0.1, 1.2]}>
+        <mesh ref={rope} position={[0, SECTIONS[0].h / 2 + 0.12, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}>
+          <cylinderGeometry args={[0.014, 0.014, 1, 5]} />
+        </mesh>
+        {/* stowed fly folded along the right of the base section on two brackets */}
+        <group ref={flyStow} position={[-0.92, -0.05, 1.4]}>
           <Lattice len={9.4} w={0.5} />
-        </group>
-        {/* boom head: black, sheaves, the rope down to the block */}
-        <group ref={head}>
-          <RB s={[0.75, 0.9, 1.0]} r={0.08} m={M.lbBlack} position={[0, -0.05, -0.2]} />
-          {[-0.18, -0.06, 0.06, 0.18].map((x) => (
-            <Cyl key={x} r={0.36} l={0.08} axis="x" m={M.steel} position={[x, -0.15, 0.25]} />
+          {[0.6, 8.6].map((z) => (
+            <Box key={z} s={[0.4, 0.12, 0.18]} m={M.lbGrey} position={[0.25, -0.1, z]} />
           ))}
-          <Cyl r={0.06} l={0.6} axis="x" m={M.chrome} position={[0, -0.15, 0.25]} />
-          <group ref={flyRef} position={[0, 0.2, 0.2]}>
+        </group>
+        {/* boom head */}
+        <group ref={head}>
+          <Head />
+          <group ref={flyRef} position={[0, 0.25, 0.3]}>
             <group ref={fly94}>
               <Lattice len={9.4} />
-              <Cyl r={0.2} l={0.1} axis="x" m={M.steel} position={[0, -0.2, 9.4]} />
+              <Cyl r={0.22} l={0.1} axis="x" m={M.steel} position={[0, -0.2, 9.4]} />
             </group>
             <group ref={fly168} position={[0, 0, 9.4]}>
               <Lattice len={7.4} />
-              <Cyl r={0.2} l={0.1} axis="x" m={M.steel} position={[0, -0.2, 7.4]} />
+              <Cyl r={0.22} l={0.1} axis="x" m={M.steel} position={[0, -0.2, 7.4]} />
             </group>
           </group>
         </group>

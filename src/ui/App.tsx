@@ -32,6 +32,46 @@ function Tabs({ tab, set }: { tab: string; set: (t: string) => void }) {
   );
 }
 
+/** Hold-to-run crane lever for mouse users: switches to crane mode and drives one joystick axis. */
+function Lever({ label, k, v }: { label: string; k: 'lx' | 'ly' | 'rx' | 'ry'; v: number }) {
+  const on = () => {
+    useUI.getState().set({ mode: 'crane' });
+    touch[k] = v;
+  };
+  const off = () => (touch[k] = 0);
+  return (
+    <button
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        on();
+      }}
+      onPointerUp={off}
+      onPointerCancel={off}
+      onLostPointerCapture={off}
+    >
+      {label}
+    </button>
+  );
+}
+
+function CraneLevers() {
+  return (
+    <>
+      <h3>Kontrol crane (tahan tombol, atau Tab lalu W/S A/D E/Q R/F)</h3>
+      <div className="levers">
+        <Lever label="▲ Boom naik (W)" k="ry" v={-1} />
+        <Lever label="▼ Boom turun (S)" k="ry" v={1} />
+        <Lever label="⟲ Swing kiri (A)" k="lx" v={-1} />
+        <Lever label="⟳ Swing kanan (D)" k="lx" v={1} />
+        <Lever label="⇥ Telescope keluar (E)" k="ly" v={-1} />
+        <Lever label="⇤ Telescope masuk (Q)" k="ly" v={1} />
+        <Lever label="⤒ Hoist naik (R)" k="rx" v={1} />
+        <Lever label="⤓ Hoist turun (F)" k="rx" v={-1} />
+      </div>
+    </>
+  );
+}
+
 function EnginePanel() {
   const ui = useUI();
   const running = cr.engine === 'running';
@@ -48,6 +88,7 @@ function EnginePanel() {
           🏗 Mode crane
         </button>
       </div>
+      <CraneLevers />
       <h3>Jalan</h3>
       <div className="row">
         {(['F', 'N', 'R'] as const).map((d) => (
@@ -392,8 +433,11 @@ function hint() {
   if (cr.failed) return 'Kecelakaan. Tekan Mulai ulang (tab Tampilan).';
   if (cr.engine === 'off') return 'Hidupkan mesin (arah di N).';
   if (L.placed) return 'Beban terpasang. Lepas rigging, lalu pilih beban berikutnya.';
+  if (cr.onTyres && cr.attached < 0 && cr.angle < 0.05 && useUI.getState().mode === 'drive' && Math.abs(cr.v) < 0.1 && cr.time > 20)
+    return 'Boom bisa dinaikkan kapan saja: Tab → mode crane, tahan W. Tapi angkat beban hanya di atas outrigger (tab Setup).';
   if (cr.onTyres && cr.attached < 0) return `Bawa crane ke dekat "${L.def.dest.label}" dan beban, lalu: outrigger penuh, matras bila tanah lunak, jack turun / auto-level.`;
-  if (cr.swingLock) return 'Mode crane (Tab), lepas swing lock (L) dan rem parkir swing di tab Setup.';
+  if (useUI.getState().mode === 'drive') return 'Siap mengangkat: tekan Tab (mode crane), lalu W/S untuk menaikkan/menurunkan boom, E/Q telescope, R/F hoist. Atau tahan tombol "Kontrol crane" di tab Mesin.';
+  if (cr.swingLock) return 'Untuk swing: lepas swing lock (L) dan rem parkir swing di tab Setup. Boom sudah bisa dinaikkan dengan W.';
   if (cr.attached < 0) return 'Ayunkan hook tepat di atas beban, turunkan dekat, lalu pilih rigging di tab Beban.';
   if (L.state === 'rest' && !L.placed) return 'Hoist naik pelan (R) sampai beban terangkat. Pantau persentase RCL.';
   if (L.state === 'air') return `Swing pelan ke ${L.def.dest.label}, kendalikan ayunan, turunkan tepat di marka kuning.`;

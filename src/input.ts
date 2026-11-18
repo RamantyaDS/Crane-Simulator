@@ -2,7 +2,7 @@
 // Crane levers follow the usual two-joystick layout: left swing / telescope, right boom / hoist.
 import { setDir, startEngine, stopEngine, toggleSwingLock } from './sim/crane';
 import { ensureAudio } from './sound';
-import { cr, useUI, type CamMode } from './store';
+import { cr, toast, useUI, type CamMode } from './store';
 
 const held = new Set<string>();
 /** Touch joysticks and pedals write here (phone layout). */
@@ -78,6 +78,7 @@ function onKey(e: KeyboardEvent) {
   else if (k === 'i') toggleEngine();
   else if (k === 'b') horn = true;
   else if (k === 'v') nextCam();
+  else if (drive && ['r', 'f', 'z', 'x', 'l'].includes(k)) toast('Masih di mode jalan: tekan Tab untuk mode crane. Di mode crane W/S = boom naik/turun, A/D swing, E/Q telescope, R/F hoist.');
   else if (drive) {
     if (k === 'q') setDir(cr, 'F');
     else if (k === 'e') setDir(cr, 'R');
