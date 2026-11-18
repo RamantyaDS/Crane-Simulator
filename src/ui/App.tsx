@@ -212,7 +212,7 @@ function SetupPanel() {
           Rem parkir swing {cr.swingPark ? 'ON' : 'off'}
         </button>
       </div>
-      {FLY.lengths.length > 1 && <h3>{FLY.label}</h3>}
+      {FLY.offsets.length > 1 && <h3>{FLY.label}</h3>}
       <div className="row" hidden={FLY.lengths.length <= 1}>
         {FLY.lengths.map((l) => (
           <button key={l} className={cr.flyTarget === l ? 'on' : ''} onClick={() => setFly(cr, l)}>
@@ -220,9 +220,9 @@ function SetupPanel() {
           </button>
         ))}
       </div>
-      <div className="row" hidden={FLY.lengths.length <= 1}>
+      <div className="row" hidden={FLY.offsets.length <= 1}>
         {FLY.offsets.map((o) => (
-          <button key={o} className={cr.flyOffset === o ? 'on' : ''} disabled={cr.fly === 0} onClick={() => (cr.angle < 0.2 ? (cr.flyOffset = o) : (cr.msg = 'Offset fly diubah dengan boom diturunkan (di bawah 11°).'))}>
+          <button key={o} className={cr.flyOffset === o ? 'on' : ''} disabled={cr.fly === 0} onClick={() => (SPEC.crawler ? (cr.attached < 0 ? (cr.flyOffset = o) : (cr.msg = 'Sudut luffing jib diubah tanpa beban.')) : cr.angle < 0.2 ? (cr.flyOffset = o) : (cr.msg = 'Offset fly diubah dengan boom diturunkan (di bawah 11°).'))}>
             {o}°
           </button>
         ))}

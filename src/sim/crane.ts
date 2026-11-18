@@ -248,7 +248,9 @@ export function create(): Crane {
   if (SPEC.crawler) {
     // the job: the vessels; a crawler stands on its tracks, boom erected
     c.target = Math.max(0, c.loads.findIndex((l) => l.def.upend));
-    Object.assign(c, { onTyres: false, beamSet: 'full', beam: SPEC.outrigger.full.x, angle: SPEC.startAngle, length: SPEC.boomMax, swingLock: false });
+    Object.assign(c, { onTyres: false, beamSet: 'full', beam: SPEC.outrigger.full.x, angle: Math.max(SPEC.startAngle, SPEC.angleMin), length: SPEC.boomMax, swingLock: false });
+    // single boom: the luffing jib is rigged
+    if (FLY.lengths[0] > 0) Object.assign(c, { fly: FLY.lengths[0], flyTarget: FLY.lengths[0], flyOffset: FLY.offsets[1], jibUp: 1 });
   }
   // hook stowed: hanging a little below the boom head
   c.drum = ropeAlong(c) + 2.2 * c.parts;

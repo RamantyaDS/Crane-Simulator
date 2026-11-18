@@ -9,8 +9,8 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { hangLen, tipUpper, upperToWorld } from '../sim/crane';
-import { SPEC } from '../sim/spec';
+import { hangLen, jibElevation, tipUpper, upperToWorld } from '../sim/crane';
+import { FLY, SPEC } from '../sim/spec';
 import { cr } from '../store';
 import { Bake } from './Bake';
 import { RB, blockWorld, craneObj } from './Crane';
@@ -23,8 +23,11 @@ const ORA = new THREE.MeshStandardMaterial({ color: '#e07b10', metalness: 0.3, r
 const DARK = new THREE.MeshStandardMaterial({ color: '#2e3134', metalness: 0.45, roughness: 0.55 });
 const SHOE = new THREE.MeshStandardMaterial({ color: '#1f2123', metalness: 0.55, roughness: 0.65 });
 const GREY = new THREE.MeshStandardMaterial({ color: '#7d8287', metalness: 0.6, roughness: 0.4 });
+// galvanised wire rope, light as on the photos
+const ROPE = new THREE.MeshStandardMaterial({ color: '#b4b9be', metalness: 0.7, roughness: 0.35 });
 
 const DECK = SPEC.deckY;
+const CAB_X = SPEC.twin ? 9.2 : 5.2; // the cab clears the right boom foot on the double boom
 const BOOM = SPEC.boomMax;
 const TWIN = SPEC.twin;
 const BW = 4.2; // boom lattice section
@@ -32,11 +35,15 @@ const FOOT_X = TWIN ? 6.0 : 0; // boom centre lines at the foot pins …
 const HEAD_X = TWIN ? 3.0 : 0; // … converging to the joined head
 const SIDES = TWIN ? [-1, 1] : [0];
 const MAST = { z: -1.6, len: 72, elev: (100 * Math.PI) / 180, footX: TWIN ? 5.0 : 0, topX: TWIN ? 2.2 : 0, w: 3.0 };
+// jib struts at the boom head (boom frame): the rear one leans back, the front one forward over the jib
+const STRUT_R = new THREE.Vector3(0, 15 * Math.sin(1.95), 15 * Math.cos(1.95));
+const STRUT_F = new THREE.Vector3(0, 15 * Math.sin(1.15), 15 * Math.cos(1.15));
 const mastTop = (s: number) => new THREE.Vector3(s * MAST.topX, SPEC.pin.y + MAST.len * Math.sin(MAST.elev), MAST.z + MAST.len * Math.cos(MAST.elev));
 const TRAY = { z: SPEC.cwArm, y: 2.2, w: 16, d: 10, hang: 7 };
 
 // ---------- geometry helpers ----------
 const UP = new THREE.Vector3(0, 1, 0);
+const ROPE_GEO = new THREE.CylinderGeometry(0.055, 0.055, 1, 6);
 function barGeo(a: THREE.Vector3, b: THREE.Vector3, r: number, seg = 6) {
   const g = new THREE.CylinderGeometry(r, r, a.distanceTo(b), seg, 1, true);
   return g.applyMatrix4(new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(UP, b.clone().sub(a).normalize()), new THREE.Vector3(1, 1, 1)));
@@ -87,47 +94,50 @@ function Lat({ len, w0, w1 = w0, chord, lace, ...p }: { len: number; w0: number;
 }
 
 // ---------- crawlers and carbody ----------
-function trackShoes(len: number, w: number, R: number) {
-  const parts: THREE.BufferGeometry[] = [];
-  const ls = len - 2 * R;
-  const per = 2 * ls + 2 * Math.PI * R;
-  const n = Math.round(per / 0.62);
-  const shoe = new THREE.BoxGeometry(w, 0.26, 0.56);
-  const grouser = new THREE.BoxGeometry(w, 0.14, 0.09).translate(0, 0.17, 0);
-  for (let i = 0; i < n; i++) {
-    let s = (i / n) * per;
-    let p: THREE.Vector3;
-    let a: number; // angle of the outward normal from +y
-    if (s < ls) {
-      p = new THREE.Vector3(0, 2 * R, -ls / 2 + s);
-      a = 0;
-    } else if ((s -= ls) < Math.PI * R) {
-      a = s / R;
-      p = new THREE.Vector3(0, R + R * Math.cos(a), ls / 2 + R * Math.sin(a));
-    } else if ((s -= Math.PI * R) < ls) {
-      p = new THREE.Vector3(0, 0, ls / 2 - s);
-      a = Math.PI;
-    } else {
-      s -= ls;
-      a = Math.PI + s / R;
-      p = new THREE.Vector3(0, R + R * Math.cos(a), -ls / 2 + R * Math.sin(a));
-    }
-    const m = new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), a), new THREE.Vector3(1, 1, 1));
-    parts.push(shoe.clone().applyMatrix4(m), grouser.clone().applyMatrix4(m));
-  }
-  return merged(parts);
+/** A point on the track loop, by arc length from the rear of the top run: position and the tilt of the shoe. */
+function onLoop(s: number, ls: number, R: number): [THREE.Vector3, number] {
+  if (s < ls) return [new THREE.Vector3(0, 2 * R, -ls / 2 + s), 0];
+  if ((s -= ls) < Math.PI * R) return [new THREE.Vector3(0, R + R * Math.cos(s / R), ls / 2 + R * Math.sin(s / R)), s / R];
+  if ((s -= Math.PI * R) < ls) return [new THREE.Vector3(0, 0, ls / 2 - s), Math.PI];
+  s -= ls;
+  return [new THREE.Vector3(0, R + R * Math.cos(Math.PI + s / R), -ls / 2 + R * Math.sin(Math.PI + s / R)), Math.PI + s / R];
 }
+
+/** How far each track has run (m), left (+x) and right (−x): from the crawler's speed and its turn rate. */
+export const trackRun = { l: 0, r: 0 };
 
 function Crawler({ s }: { s: number }) {
   const L = SPEC.carrierLen;
   const W = SPEC.tyreW;
   const R = 1.55;
-  const shoes = useMemo(() => trackShoes(L, W, R), [L, W]);
   const ls = L - 2 * R;
+  const per = 2 * ls + 2 * Math.PI * R;
+  const n = Math.round(per / 0.62);
+  const shoe = useMemo(() => merged([new THREE.BoxGeometry(W, 0.26, 0.56), new THREE.BoxGeometry(W, 0.14, 0.09).translate(0, 0.17, 0)]), [W]);
+  const inst = useRef<THREE.InstancedMesh>(null);
+  const ends = useRef<THREE.Group[]>([]);
   const out = s * (W / 2 + 0.02);
+  const m4 = useMemo(() => new THREE.Matrix4(), []);
+  const q = useMemo(() => new THREE.Quaternion(), []);
+  const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+  const ax = useMemo(() => new THREE.Vector3(1, 0, 0), []);
+  const last = useRef(NaN);
+  useFrame(() => {
+    // the shoes run round the loop (each the next one's place: shift by the run, modulo the pitch is enough)
+    const run = s > 0 ? trackRun.l : trackRun.r;
+    if (run === last.current) return;
+    last.current = run;
+    const off = ((run % per) + per) % per;
+    for (let i = 0; i < n; i++) {
+      const [p, a] = onLoop(((i / n) * per + off) % per, ls, R);
+      inst.current!.setMatrixAt(i, m4.compose(p, q.setFromAxisAngle(ax, a), one));
+    }
+    inst.current!.instanceMatrix.needsUpdate = true;
+    for (const g of ends.current) g.rotation.x = run / (R - 0.05);
+  });
   return (
     <group position={[s * (SPEC.track / 2), 0.13, 0]}>
-      <mesh geometry={shoes} material={SHOE} castShadow receiveShadow />
+      <instancedMesh ref={inst} args={[shoe, SHOE, n]} castShadow receiveShadow frustumCulled={false} />
       {/* side frame between the runs, rollers under it, carrier rollers on top */}
       <RB s={[W - 0.5, 1.9, ls]} r={0.12} m={DARK} position={[0, R, 0]} />
       {Array.from({ length: 9 }, (_, i) => (
@@ -138,7 +148,7 @@ function Crawler({ s }: { s: number }) {
       ))}
       {/* sprocket (rear) with its teeth and the idler (front), round covers outboard */}
       {[-1, 1].map((e) => (
-        <group key={e} position={[0, R, (e * ls) / 2]}>
+        <group key={e} position={[0, R, (e * ls) / 2]} ref={(el) => el && (ends.current[e < 0 ? 0 : 1] = el)} userData={{ noBake: true }}>
           <Cyl r={R - 0.2} l={W - 0.3} axis="x" m={DARK} seg={28} />
           <Cyl r={R * 0.7} l={0.25} axis="x" m={GREY} position={[s * (W / 2 - 0.05), 0, 0]} seg={28} />
           <Cyl r={0.35} l={0.35} axis="x" m={DARK} position={[s * (W / 2 + 0.05), 0, 0]} seg={16} />
@@ -244,7 +254,9 @@ function House() {
         </group>
       ))}
       {/* operator's cab, front right, on its platform with steps */}
-      <group position={[5.2, BASE, 3.6]}>
+      <group position={[CAB_X, BASE, 3.6]}>
+        {/* bracket out from the revolving frame (outboard of the boom foot on the double boom) */}
+        {TWIN && <Box s={[CAB_X - 5.6, 0.7, 2.4]} m={ORA} position={[-(CAB_X - 5.6) / 2, 0.45, 0]} />}
         <Box s={[2.8, 0.2, 4.2]} m={M.checker} position={[0, 0.9, 0]} />
         <RB s={[2.4, 2.8, 3.4]} r={0.12} m={M.greyLight} position={[0, 2.4, 0]} />
         <mesh position={[0, 2.6, 1.71]} rotation={[-0.12, 0, 0]} material={M.glass}>
@@ -309,7 +321,7 @@ function Superlift() {
     const out: [THREE.Vector3, THREE.Vector3][] = [];
     for (const s of TWIN ? [-1, 1] : [-1, 1]) {
       const top = mastTop(TWIN ? s : 0).add(new THREE.Vector3(0, 1.2, -1));
-      for (const d of [-0.35, 0, 0.35]) out.push([top.clone().add(new THREE.Vector3(d, 0, 0)), new THREE.Vector3((s * TRAY.w) / 2 - s * 1.0 + d, TRAY.y + TRAY.hang, TRAY.z)]);
+      for (const d of [-0.5, -0.25, 0, 0.25, 0.5]) out.push([top.clone().add(new THREE.Vector3(d, 0, 0)), new THREE.Vector3((s * TRAY.w) / 2 - s * 1.0 + d, TRAY.y + TRAY.hang, TRAY.z)]);
     }
     return out;
   }, []);
@@ -329,8 +341,28 @@ function Superlift() {
       </group>
       {/* ropes down to the tray */}
       {hangers.map(([a, b], i) => (
-        <mesh key={i} geometry={barGeo(a, b, 0.07)} material={M.sling} />
+        <mesh key={i} geometry={barGeo(a, b, 0.08)} material={ROPE} />
       ))}
+      {/* mast backstays down to the anchor frame at the rear of the house */}
+      {SIDES.flatMap((s) =>
+        [-0.4, 0, 0.4].map((d) => (
+          <mesh key={`bs${s}${d}`} geometry={barGeo(mastTop(s).add(new THREE.Vector3(d, 0.8, -0.6)), new THREE.Vector3((TWIN ? s : 1) * 3.2 + d, DECK + 11.2, SPEC.houseArm - 3.2), 0.08)} material={ROPE} />
+        )),
+      )}
+      {!TWIN &&
+        [-0.4, 0, 0.4].map((d) => (
+          <mesh key={`bs2${d}`} geometry={barGeo(mastTop(0).add(new THREE.Vector3(d, 0.8, -0.6)), new THREE.Vector3(-3.2 + d, DECK + 11.2, SPEC.houseArm - 3.2), 0.08)} material={ROPE} />
+        ))}
+      {/* the anchor frame they pull on, over the house counterweight */}
+      <group position={[0, DECK + 0.8, SPEC.houseArm - 3.2]}>
+        {[-3.2, 3.2].map((x) => (
+          <group key={x}>
+            <mesh geometry={barGeo(new THREE.Vector3(x, 0.8, 2.5), new THREE.Vector3(x, 10.4, 0), 0.35, 10)} material={RED} />
+            <mesh geometry={barGeo(new THREE.Vector3(x, 0.8, -1.5), new THREE.Vector3(x, 10.4, 0), 0.3, 10)} material={RED} />
+          </group>
+        ))}
+        <Box s={[7.2, 0.8, 0.8]} m={RED} position={[0, 10.4, 0]} />
+      </group>
       {/* the hanging tray: A-frame hanger beam, posts, platform */}
       <group position={[0, 0, TRAY.z]}>
         <RB s={[TRAY.w + 1, 1.2, 1.4]} r={0.1} m={ORA} position={[0, TRAY.y + TRAY.hang, 0]} />
@@ -403,11 +435,33 @@ function Boom() {
   const head = useRef<THREE.Group>(null);
   const pend = useRef<THREE.Group[]>([]);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3() }), []);
+  const jib = useRef<THREE.Group>(null);
+  const jp = useRef<THREE.Group[]>([]);
+  const leads = useRef<THREE.Mesh[]>([]);
   const cross = useMemo(() => (TWIN ? [16, 36, 56, 76].map((z) => ({ z, gap: 2 * (FOOT_X - ((FOOT_X - HEAD_X) * z) / BOOM) - BW })) : []), []);
   useFrame(() => {
     const ang = cr.angle - cr.boomBend * 0.9;
     pivot.current!.rotation.x = -ang;
     craneObj.head = head.current;
+    // luffing jib (single boom): its angle, and the pendants from the struts (boom-head frame)
+    if (jib.current) {
+      const th = ang - jibElevation(cr);
+      jib.current.rotation.x = th;
+      const L = FLY.lengths[0];
+      const jt = new THREE.Vector3(0, -L * Math.sin(th), L * Math.cos(th)); // jib tip in the head frame
+      const pairs: [THREE.Vector3, THREE.Vector3][] = [
+        [STRUT_F.clone(), jt.clone().add(new THREE.Vector3(0, 1.2, 0))],
+        [STRUT_R.clone(), STRUT_F.clone()],
+        [STRUT_R.clone(), new THREE.Vector3(0, BW / 2, -BOOM + 14)],
+      ];
+      pairs.forEach(([a, b], i) => {
+        const g = jp.current[i];
+        if (!g) return;
+        g.position.copy(a).add(b).multiplyScalar(0.5);
+        g.scale.set(1, a.distanceTo(b), 1);
+        g.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
+      });
+    }
     // pendants: mast top to the boom head, per side (upper frame)
     SIDES.forEach((s, i) => {
       const g = pend.current[i];
@@ -418,19 +472,38 @@ function Boom() {
       g.position.copy(tmp.a).add(tmp.b).multiplyScalar(0.5);
       g.scale.set(1, tmp.a.distanceTo(tmp.b), 1);
       g.quaternion.setFromUnitVectors(UP, tmp.b.clone().sub(tmp.a).normalize());
+      // hoist lead ropes: off the winch drums up inside the lattice to the head sheaves
+      [-0.4, -2.6].forEach((wz, k) => {
+        const m = leads.current[i * 2 + k];
+        if (!m) return;
+        tmp.a.set(hx * 0.5 + (k ? -0.6 : 0.6), DECK + 3.3, wz);
+        tmp.b.set(hx + (k ? -0.6 : 0.6), SPEC.pin.y + BOOM * Math.sin(ang) - 0.5 * Math.cos(ang), SPEC.pin.z + BOOM * Math.cos(ang) + 0.5 * Math.sin(ang));
+        m.position.copy(tmp.a).add(tmp.b).multiplyScalar(0.5);
+        m.scale.set(1, tmp.a.distanceTo(tmp.b), 1);
+        m.quaternion.setFromUnitVectors(UP, tmp.b.clone().sub(tmp.a).normalize());
+      });
     });
   });
   return (
     <group>
       {SIDES.map((s, i) => (
         <group key={s} ref={(el) => el && (pend.current[i] = el)}>
-          {[-0.45, -0.15, 0.15, 0.45].map((dx) => (
-            <mesh key={dx} position={[dx, 0, 0]} material={M.sling}>
-              <cylinderGeometry args={[0.07, 0.07, 1, 6]} />
-            </mesh>
-          ))}
+          {[-0.6, -0.2, 0.2, 0.6].flatMap((dx) =>
+            [-0.25, 0.25].map((dz) => (
+              <mesh key={`${dx}${dz}`} position={[dx, 0, dz]} material={ROPE}>
+                <cylinderGeometry args={[0.08, 0.08, 1, 6]} />
+              </mesh>
+            )),
+          )}
         </group>
       ))}
+      {SIDES.flatMap((s, i) =>
+        [0, 1].map((k) => (
+          <mesh key={`l${s}${k}`} ref={(el) => el && (leads.current[i * 2 + k] = el)} material={ROPE}>
+            <cylinderGeometry args={[0.07, 0.07, 1, 6]} />
+          </mesh>
+        )),
+      )}
       <group position={[0, SPEC.pin.y, SPEC.pin.z]}>
         <group ref={pivot}>
           <Bake>
@@ -461,7 +534,39 @@ function Boom() {
                 </group>
               ))}
               <Cyl r={0.12} l={0.2} m={M.redLamp} position={[0, 1.85, 0.3]} />
+              {/* single boom: the two jib struts in a V at the head */}
+              {!TWIN &&
+                [STRUT_R, STRUT_F].map((t, i) => {
+                  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), t.clone().normalize());
+                  return (
+                    <group key={i} quaternion={q}>
+                      <Lat len={t.length()} w0={2.6} w1={1.4} chord={0.16} lace={0.07} />
+                    </group>
+                  );
+                })}
             </Bake>
+            {!TWIN && (
+              <>
+                <group ref={jib}>
+                  <Bake>
+                    <Lat len={FLY.lengths[0]} w0={3.4} w1={2.4} chord={0.18} lace={0.08} />
+                    <RB s={[2.8, 2.2, 2.0]} r={0.1} m={RED} position={[0, 0, FLY.lengths[0]]} />
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <Cyl key={i} r={1.1} l={0.18} axis="x" m={GREY} position={[-0.9 + i * 0.45, -1.1, FLY.lengths[0] + 0.9]} seg={20} />
+                    ))}
+                  </Bake>
+                </group>
+                {[0, 1, 2].map((i) => (
+                  <group key={i} ref={(el) => el && (jp.current[i] = el)}>
+                    {[-0.3, 0.3].map((dx) => (
+                      <mesh key={dx} position={[dx, 0, 0]} material={ROPE}>
+                        <cylinderGeometry args={[0.08, 0.08, 1, 6]} />
+                      </mesh>
+                    ))}
+                  </group>
+                ))}
+              </>
+            )}
           </group>
         </group>
       </group>
@@ -544,12 +649,16 @@ function HookBlockS({ x }: { x: number }) {
 /** Equalizer (double boom) or single block, at the hanging block position, and the rope falls from each boom head. */
 function Hook() {
   const ref = useRef<THREE.Group>(null);
-  const falls = useRef<THREE.Mesh[]>([]);
+  const falls = useRef<THREE.InstancedMesh>(null);
+  const m4 = useMemo(() => new THREE.Matrix4(), []);
+  const q = useMemo(() => new THREE.Quaternion(), []);
+  const sc = useMemo(() => new THREE.Vector3(), []);
+  const mid = useMemo(() => new THREE.Vector3(), []);
   const yoke = useMemo(() => yokeGeo(), []);
   const blk = useMemo(() => new THREE.Vector3(), []);
   const a = useMemo(() => new THREE.Vector3(), []);
   const b = useMemo(() => new THREE.Vector3(), []);
-  const per = 12; // rope falls drawn per block
+  const per = 20; // rope falls drawn per block (two rows across the sheave nest)
   useFrame(() => {
     blockWorld(blk);
     const g = ref.current!;
@@ -559,20 +668,23 @@ function Hook() {
     const t = tipUpper(cr);
     const c = Math.cos(yaw);
     const s = Math.sin(yaw);
-    falls.current.forEach((m, i) => {
+    const f = falls.current!;
+    f.visible = hangLen(cr) > 0.5;
+    for (let i = 0; i < per * SIDES.length; i++) {
       const x = SIDES[Math.floor(i / per)] * HEAD_X;
       const j = i % per;
-      const off = (Math.floor(j / 2) - (per / 2 - 1) / 2) * 0.42;
+      const off = (Math.floor(j / 2) - (per / 2 - 1) / 2) * 0.3;
       const dz = j % 2 ? 0.35 : -0.35;
       const h = upperToWorld(cr, x + off, t.y - 1.6, t.z + 1.6 + dz);
       a.set(h.x, h.y, h.z);
-      const lx = x + off * 0.75;
+      const lx = x + off * 0.85;
       b.set(blk.x + lx * c + dz * s, blk.y + (TWIN ? 4.4 : 1.6), blk.z - lx * s + dz * c);
-      m.visible = hangLen(cr) > 0.5;
-      m.position.copy(a).add(b).multiplyScalar(0.5);
-      m.scale.set(1, a.distanceTo(b), 1);
-      m.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
-    });
+      mid.copy(a).add(b).multiplyScalar(0.5);
+      sc.set(1, a.distanceTo(b), 1);
+      q.setFromUnitVectors(UP, b.clone().sub(a).normalize());
+      f.setMatrixAt(i, m4.compose(mid, q, sc));
+    }
+    f.instanceMatrix.needsUpdate = true;
   });
   return (
     <>
@@ -599,17 +711,14 @@ function Hook() {
           </group>
         )}
       </group>
-      {Array.from({ length: per * SIDES.length }, (_, i) => (
-        <mesh key={i} ref={(el) => el && (falls.current[i] = el)} material={M.rope}>
-          <cylinderGeometry args={[0.035, 0.035, 1, 5]} />
-        </mesh>
-      ))}
+      <instancedMesh ref={falls} args={[ROPE_GEO, ROPE, per * SIDES.length]} frustumCulled={false} castShadow />
     </>
   );
 }
 
 export function SanyModel() {
   const pose = useRef<THREE.Group>(null);
+  const prev = useRef({ t: cr.time, h: cr.heading });
   const upper = useRef<THREE.Group>(null);
   useFrame(() => {
     pose.current!.position.set(cr.x, 0, cr.z);
@@ -620,6 +729,14 @@ export function SanyModel() {
     upper.current!.rotation.y = cr.slew;
     craneObj.upper = upper.current;
     craneObj.carrier = pose.current;
+    // each track runs at the speed plus or minus the turn: on the spot they run opposite ways
+    const dt = Math.min(0.1, Math.max(0, cr.time - prev.current.t));
+    let dh = cr.heading - prev.current.h;
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    const X = SPEC.track / 2;
+    trackRun.l += cr.v * dt - dh * X;
+    trackRun.r += cr.v * dt + dh * X;
+    prev.current = { t: cr.time, h: cr.heading };
   });
   return (
     <>

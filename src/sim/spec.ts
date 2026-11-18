@@ -193,7 +193,7 @@ const SANY: Spec = {
   cwBox: { x: 7.5, z: 5.0, y0: 0.4, y1: 7.0 }, // superlift tray, close to the ground
   deflRef: 96,
   deflK: 0.04,
-  cabEye: [6.2, 7.2, 4.0],
+  cabEye: [9.2, 7.2, 4.6],
   idleRpm: 700,
   maxRpm: 1900,
   topSpeed: 2.0 / 3.6, // crawler travel, 4× the real 0.5 km/h
@@ -210,12 +210,19 @@ const SANY: Spec = {
 const SANY1: Spec = {
   ...SANY,
   model: 'sany1',
-  name: 'SANY SCC45000A (boom tunggal)',
+  name: 'SANY SCC45000A (boom tunggal + luffing jib)',
   twin: false,
+  // single boom with the luffing jib (photo): 66 m main boom, 56 m jib on the struts at its head
+  boomMin: 66,
+  boomMax: 66,
+  stops: [66],
+  angleMin: (55 * Math.PI) / 180,
+  angleMax: (86 * Math.PI) / 180,
   counterweights: [0, 800, 1600],
-  mass: { carrier: 1100, upper: 450, boomBase: 280, boomPerM: 0, fly: [0] },
+  mass: { carrier: 1100, upper: 450, boomBase: 200, boomPerM: 0, fly: [70] },
   houseCw: 800,
   ropeLimit: 70000,
+  cabEye: [5.2, 7.2, 4.6],
 };
 
 export const SPEC: Spec = structuredClone(LINKBELT);
@@ -277,6 +284,7 @@ export function setModel(id: ModelId) {
   const s = { linkbelt: LINKBELT, zoomlion: ZOOMLION, sany: SANY, sany1: SANY1 }[id];
   Object.assign(SPEC, structuredClone(s));
   if (id === 'zoomlion') Object.assign(FLY, { lengths: [0, 51, 81, 111], offsets: [0, 5, 10, 15], label: 'Boom wind' });
+  else if (id === 'sany1') Object.assign(FLY, { lengths: [56], offsets: [5, 15, 25, 35], label: 'Luffing jib (sudut ke bawah garis boom)' });
   else if (s.crawler) Object.assign(FLY, { lengths: [0], offsets: [0], label: 'Jib' });
   else Object.assign(FLY, { lengths: [0, 9.4, 16.8], offsets: [2, 15, 30, 45], label: 'Fly jib' });
   const blocks = id === 'zoomlion' ? ZL_BLOCKS : id === 'sany' ? SANY_BLOCKS : id === 'sany1' ? SANY_BLOCKS.slice(0, 2) : LB_BLOCKS;

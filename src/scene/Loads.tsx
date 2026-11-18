@@ -561,7 +561,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 /** Thickness of a sling leg for the fitted rigging (wire rope or chain grows with its working load limit). */
 function legRadius() {
   const rig = RIGGING.find((r) => r.id === cr.rig);
-  return rig ? Math.min(0.05, 0.012 + (rig.wll / 100000) * 0.03) : 0.025;
+  return rig ? Math.min(0.16, 0.012 + Math.sqrt(rig.wll / 100000) * 0.025) : 0.025; // grows with the rope diameter, √WLL
 }
 const isChain = () => !!RIGGING.find((r) => r.id === cr.rig)?.name.includes('rantai');
 
