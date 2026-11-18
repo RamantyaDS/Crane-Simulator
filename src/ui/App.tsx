@@ -3,7 +3,7 @@ import { CAMS, KEYS_COMMON, KEYS_CRANE, KEYS_DRIVE, PAD_KEYS, bindKeys, toggleEn
 import { FULL, setQuality } from '../scene/Adaptive';
 import { Experience } from '../scene/Experience';
 import { chartTable, stopIndex } from '../sim/chart';
-import { LOWER_BOOST, attachRig, bladeError, boomInRotor, detachRig, hangLen, nacelleUp, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
+import { JIB_RAISE_DEG, LOWER_BOOST, attachRig, bladeError, boomInRotor, detachRig, hangLen, nacelleUp, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
 import { plan } from '../sim/rigging';
 import { RIGGING } from '../sim/site';
 import { BLOCKS, FLY, MODELS, SPEC, chooseModel, maxParts } from '../sim/spec';
@@ -218,7 +218,11 @@ function SetupPanel() {
         ))}
       </div>
       {cr.flyTarget !== cr.fly && <p className="dim">Memasang/melepas {FLY.label.toLowerCase()}… {Math.round(cr.flyT * 100)}%</p>}
-      {ZL && <p className="dim">Boom wind dirakit dengan boom utama ditarik penuh dan rendah, lalu boom utama di-telescope penuh {fmt(SPEC.boomMax)} m untuk bekerja.</p>}
+      {ZL && (
+        <p className="dim">
+          Urutan pasang: 1) crane berdiri di outrigger + counterweight · 2) boom utama ditarik penuh, rendah (&lt; 6°), swing ke jalur oranye "AREA RAKIT BOOM WIND" (barat daya, lewat gerbang) · 3) pilih panjang: seksi lattice dirakit di tanah dari pangkal ke ujung · 4) naikkan boom utama pelan, ujung boom wind terseret di tanah · 5) di {JIB_RAISE_DEG}° boom wind terangkat sendiri ke posisi kerja · 6) telescope penuh {fmt(SPEC.boomMax)} m, swing ke menara. Bongkar: hook parkir di tanah, boom {JIB_RAISE_DEG}°, pilih "Tanpa" (boom wind rebah), turunkan boom &lt; 6°, pilih "Tanpa" lagi.
+        </p>
+      )}
       <h3>Hook block & reeving</h3>
       <select value={cr.block} onChange={(e) => setBlock(cr, e.target.value as typeof cr.block, Math.min(cr.parts, maxParts(BLOCKS.find((b) => b.id === e.target.value)!.sheaves)))}>
         {BLOCKS.map((b) => (

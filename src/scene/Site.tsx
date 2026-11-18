@@ -4,7 +4,7 @@
 import { Text } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GENHOUSE, LOADS, POWERLINE, PRESS_SPOT, TOWER, TOWER_SPOT } from '../sim/site';
+import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GATE_W, GENHOUSE, JIB_LAYDOWN, LOADS, POWERLINE, PRESS_SPOT, TOWER, TOWER_SPOT } from '../sim/site';
 import { SPEC } from '../sim/spec';
 import { Bake } from './Bake';
 import { bladeSection } from './Loads';
@@ -267,6 +267,29 @@ function WindTower() {
   );
 }
 
+/** Marked strip where the wind boom is laid out on cribbing and assembled in line with the boom. */
+function JibStrip() {
+  const J = JIB_LAYDOWN;
+  const line = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff6a00', transparent: true, opacity: 0.8, depthWrite: false }), []);
+  const yaw = Math.atan2(J.dx, J.dz);
+  const mid = J.from + J.len / 2;
+  return (
+    <group position={[J.x + J.dx * mid, 0.05, J.z + J.dz * mid]} rotation={[0, yaw, 0]}>
+      {[-1, 1].map((k) => (
+        <mesh key={k} position={[(k * J.w) / 2, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} material={line}>
+          <planeGeometry args={[0.2, J.len]} />
+        </mesh>
+      ))}
+      {Array.from({ length: 12 }, (_, i) => (
+        <Box key={i} s={[2.4, 0.3, 0.3]} m={S.wood} position={[0, 0.15, -J.len / 2 + 6 + i * 10]} />
+      ))}
+      <Text position={[0, 0.03, -J.len / 2 + 3]} rotation={[-Math.PI / 2, 0, Math.PI]} fontSize={1.1} color="#ff6a00">
+        AREA RAKIT BOOM WIND · 111 m
+      </Text>
+    </group>
+  );
+}
+
 /** Steel root stands and padded tip cradles the blades arrive on. */
 function BladeStands() {
   return (
@@ -369,10 +392,19 @@ function PowerLine() {
 
 function Surroundings() {
   const trees: [number, number, number][] = [];
+  const J = JIB_LAYDOWN;
+  // keep the wind boom's assembly strip clear of trees
+  const inStrip = (x: number, z: number) => {
+    const t = (x - J.x) * J.dx + (z - J.z) * J.dz;
+    const off = Math.abs((x - J.x) * J.dz - (z - J.z) * J.dx);
+    return t > 0 && t < J.from + J.len + 6 && off < J.w + 5;
+  };
   for (let i = 0; i < 40; i++) {
     const a = (i / 40) * Math.PI * 2;
-    trees.push([Math.cos(a) * (85 + (i % 3) * 6), 4 + (i % 4), Math.sin(a) * (80 + (i % 5) * 5)]);
+    const t: [number, number, number] = [Math.cos(a) * (85 + (i % 3) * 6), 4 + (i % 4), Math.sin(a) * (80 + (i % 5) * 5)];
+    if (!inStrip(t[0], t[2])) trees.push(t);
   }
+  const westPosts = Array.from({ length: 32 }, (_, i) => -62 + i * 4).filter((z) => z <= GATE_W.z0 || z >= GATE_W.z1);
   return (
     <group>
       {[30, 37].map((x) => (
@@ -384,9 +416,18 @@ function Surroundings() {
       <Text position={[33.5, 3.2, -41.3]} rotation={[0, Math.PI, 0]} fontSize={0.45} color="#1f3550">
         KANTOR PROYEK · K3 NOMOR 1
       </Text>
-      {/* fence */}
+      {/* fence: posts on the south, west (with the gate) and north sides */}
       {Array.from({ length: 36 }, (_, i) => (
         <Cyl key={`f${i}`} r={0.04} l={2.2} m={M.steel} seg={6} position={[-70 + i * 4, 1.1, -62]} />
+      ))}
+      {Array.from({ length: 36 }, (_, i) => (
+        <Cyl key={`n${i}`} r={0.04} l={2.2} m={M.steel} seg={6} position={[-70 + i * 4, 1.1, 62]} />
+      ))}
+      {westPosts.map((z) => (
+        <Cyl key={`w${z}`} r={0.04} l={2.2} m={M.steel} seg={6} position={[-70, 1.1, z]} />
+      ))}
+      {[GATE_W.z0, GATE_W.z1].map((z) => (
+        <Cyl key={`g${z}`} r={0.12} l={2.6} m={M.hookYellow} seg={10} position={[-70, 1.3, z]} />
       ))}
       {trees.map(([x, h, z], i) => (
         <group key={i} position={[x, 0, z]}>
@@ -415,6 +456,7 @@ export function Site() {
         <WindTower />
         {SPEC.model === 'zoomlion' && <TowerPlan />}
         {SPEC.model === 'zoomlion' && <BladeStands />}
+        {SPEC.model === 'zoomlion' && <JibStrip />}
         <PowerLine />
         <Surroundings />
       </Bake>

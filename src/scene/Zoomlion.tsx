@@ -7,7 +7,7 @@ import { Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { deflection, pads } from '../sim/crane';
+import { deflection, jibElevation, pads } from '../sim/crane';
 import { SPEC } from '../sim/spec';
 import { cr } from '../store';
 import { Bake } from './Bake';
@@ -649,13 +649,17 @@ function Boom() {
       if (leads.current[k + 2]) placeRope(leads.current[k + 2], top, tmp.a);
     });
     // wind boom: grows out of the head while it is fitted
-    const showLen = cr.flyTarget > 0 ? cr.flyTarget : cr.fly;
-    const erect = cr.flyTarget !== cr.fly ? (cr.flyTarget > 0 ? cr.flyT : 1 - cr.flyT) : cr.fly > 0 ? 1 : 0;
+    // assembled piece by piece on the ground in line with the boom (assist crane), from the foot pinned to the head
+    // outwards; taken apart from the tip back. Its tip rests on the ground until the boom has lifted it
+    const fitting = cr.flyTarget > cr.fly;
+    const removing = cr.flyTarget < cr.fly;
+    const showLen = fitting ? cr.flyTarget : cr.fly;
+    const n = [0, 60, 90].filter((t) => showLen > t).length;
     const w = wind.current!;
-    w.visible = erect > 0.01 && showLen > 0;
-    w.scale.z = Math.max(0.01, erect);
-    w.rotation.x = (cr.flyOffset * Math.PI) / 180;
-    parts.current.forEach((g, i) => g && (g.visible = showLen > [0, 60, 90][i]));
+    w.visible = showLen > 0;
+    w.scale.z = 1;
+    w.rotation.x = ang - jibElevation(cr, showLen);
+    parts.current.forEach((g, i) => g && (g.visible = i < n && (fitting ? cr.flyT >= (i + 1) / (n + 1) : removing ? cr.flyT < (n - i) / (n + 1) : true)));
     // luffing cylinder from the upper to the base section
     tmp.a.set(0, DECK + 1.5 - SPEC.pin.y, 2.6 - SPEC.pin.z);
     tmp.b.set(0, -1.9 * Math.cos(ang) + 14 * Math.sin(ang), 14 * Math.cos(ang) + 1.9 * Math.sin(ang));

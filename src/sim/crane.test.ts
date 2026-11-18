@@ -117,6 +117,7 @@ describe('RTC-80160 crane', () => {
   it('lock boom: telescopes to a pin position and latches (the chart applies again)', () => {
     const c = ready();
     onOutriggers(c);
+    c.angle = 0.35; // clear of the loads in the laydown yard ahead (the boom cannot pass through them)
     c.length = 29.2; // between pins: no rating
     c.drum += 20 * c.parts;
     lockBoom(c);

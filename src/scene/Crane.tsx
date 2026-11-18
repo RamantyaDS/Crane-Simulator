@@ -6,7 +6,7 @@ import { RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { deflection, hangLen, pads, tipWorld } from '../sim/crane';
+import { deflection, hangLen, jibElevation, pads, tipWorld } from '../sim/crane';
 import { BLOCKS, SPEC } from '../sim/spec';
 import { cr } from '../store';
 import { Bake } from './Bake';
@@ -633,7 +633,8 @@ function Boom() {
     const isErect = cr.fly > 0 || (cr.flyTarget > 0 && cr.flyT > 0);
     flyRef.current!.visible = isErect && showLen > 0;
     flyRef.current!.rotation.y = (1 - (cr.flyTarget > 0 ? erect : cr.fly > 0 ? 1 - cr.flyT : 0)) * Math.PI * 0.95;
-    flyRef.current!.rotation.x = (cr.flyOffset * Math.PI) / 180;
+    // its offset below the boom line, but the tip never goes into the ground with the boom low
+    flyRef.current!.rotation.x = cr.angle - sag * 0.6 - cr.boomBend * 0.9 - jibElevation(cr, showLen || 9.4);
     flyStow.current!.visible = !flyRef.current!.visible;
     fly94.current!.visible = showLen >= 9;
     fly168.current!.visible = showLen > 10;

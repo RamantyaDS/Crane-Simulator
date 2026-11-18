@@ -87,6 +87,8 @@ export interface Crane {
   flyTarget: number;
   flyOffset: number;
   flyT: number; // erection progress
+  jibUp: number; // wind boom: 0 tip resting on the ground (as assembled), 1 raised to its working offset
+  jibDown: boolean; // wind boom being let down onto the ground before it is taken apart
   pinTarget: number; // pin length the boom is telescoping to by itself (0 = none)
   // levers −1..1
   swingLever: number;
@@ -194,6 +196,8 @@ export function create(): Crane {
     flyTarget: 0,
     flyOffset: FLY.offsets[0],
     flyT: 0,
+    jibUp: 1,
+    jibDown: false,
     pinTarget: 0,
     swingLever: 0,
     luffLever: 0,
@@ -278,12 +282,44 @@ export function tipUpper(c: Crane) {
   let y = SPEC.pin.y + L * Math.sin(c.angle);
   let z = SPEC.pin.z + L * Math.cos(c.angle);
   if (c.fly > 0) {
-    const a = c.angle - (c.flyOffset * Math.PI) / 180;
+    const a = jibElevation(c);
     y += c.fly * Math.sin(a);
     z += c.fly * Math.cos(a);
   }
   const d = deflection(c);
   return { y: y - d * Math.cos(c.angle), z: z + d * Math.sin(c.angle) * 0.4 };
+}
+
+/** Main boom angle at which the wind boom is raised from the ground (and let down again). */
+export const JIB_RAISE_DEG = 75;
+
+/** Elevation of the fly / wind boom (rad from horizontal). A wind boom just assembled lies with its tip on the ground
+ *  (on the tip dolly) while the main boom goes up, and is raised to its offset once the boom is steep (jibUp); a raised
+ *  one sits at its offset below the boom line. Never below the ground either way. */
+function jibRest(c: Crane, len: number) {
+  // head height above the ground, with the boom's sag and the crane standing on its jacks
+  const h = SPEC.pin.y + (c.length + SPEC.headLen) * Math.sin(c.angle) - deflection(c) * Math.cos(c.angle) + c.lift;
+  return -Math.asin(clamp((h - 0.6) / Math.max(1, len), -1, 1));
+}
+export function jibElevation(c: Crane, len = c.fly) {
+  const rest = jibRest(c, len);
+  const work = c.angle - (c.flyOffset * Math.PI) / 180;
+  const up = c.flyTarget > c.fly ? 0 : c.jibUp; // still being assembled: on the ground
+  const k = up * up * (3 - 2 * up);
+  return Math.max(rest + (work - rest) * k, rest);
+}
+/** The wind boom's tip is on the ground (part of its weight goes there, not into the crane). */
+const jibResting = (c: Crane) => c.fly > 0 && jibElevation(c) <= jibRest(c, c.fly) + 1e-6;
+
+/** First thing in the way of a fly laid out on the ground ahead of the head (null: the strip is clear). */
+export function laydownBlocked(c: Crane, len: number): string | null {
+  const z0 = SPEC.pin.z + (c.length + SPEC.headLen) * Math.cos(c.angle);
+  for (let d = 1; d <= len; d += 1.5) {
+    const p = upperToWorld(c, 0, 1, z0 + d);
+    for (const b of OBSTACLES) if (b.y0 < 2.5 && inside(b, p.x, p.z, 1.3)) return nameOf(b.id);
+    for (const L of c.loads) if (L.state !== 'air' && !(L.def.bolt && L.placed) && L.y < 2.5 && inside(loadBox(L, L.x, L.y, L.z), p.x, p.z, 1.3)) return L.def.name;
+  }
+  return null;
 }
 
 /** Load radius as the RCL reads it: swing centre to the hook line, horizontal. */
@@ -390,8 +426,24 @@ export function lockBoom(c: Crane, dir = 0) {
 
 export function setFly(c: Crane, len: number) {
   if (len === c.fly && len === c.flyTarget) return;
-  if (c.length > SPEC.boomMin + 0.2 || c.angle > (6 * Math.PI) / 180) return say(c, 'Pasang/lepas fly: boom ditarik penuh dan diturunkan dulu (di bawah 6°).');
   if (c.attached >= 0) return say(c, 'Lepas beban dulu.');
+  if (SPEC.model === 'zoomlion' && c.fly > 0 && len !== c.fly && c.flyTarget === c.fly) {
+    // an erected wind boom is first let down onto the ground (main boom steep), then the boom comes down
+    if (c.jibUp > 0) {
+      if (c.angle < (JIB_RAISE_DEG * Math.PI) / 180) return say(c, `Untuk membongkar: naikkan boom utama ke ${JIB_RAISE_DEG}° dulu, boom wind diturunkan sampai ujungnya rebah di tanah.`);
+      if (c.hook.y - surfaceAt(c.hook.x, c.hook.z) > 2.5) return say(c, 'Turunkan hook sampai menyentuh tanah dulu: boom wind direbahkan dengan hook diparkir di tanah.');
+      c.jibDown = true;
+      return say(c, 'Boom wind diturunkan ke tanah…');
+    }
+  }
+  if (c.length > SPEC.boomMin + 0.2 || c.angle > (6 * Math.PI) / 180) return say(c, 'Pasang/lepas fly: boom ditarik penuh dan diturunkan dulu (di bawah 6°).');
+  if (SPEC.model === 'zoomlion') {
+    // the wind boom is laid out on the ground in line with the boom and pinned to its head: the crane stands on its
+    // outriggers first and the strip ahead must be clear
+    if (c.onTyres) return say(c, 'Berdirikan crane dulu (outrigger, counterweight): boom wind dirakit dengan crane sudah di atas outrigger.');
+    const block = len > c.fly ? laydownBlocked(c, len) : null;
+    if (block) return say(c, `Jalur rakit ${len} m di depan boom tidak bebas: ada ${block}. Swing boom ke jalur oranye "AREA RAKIT BOOM WIND" (barat daya, lewat gerbang pagar).`);
+  }
   c.flyTarget = len;
   c.flyT = 0;
   c.events.push('fly');
@@ -413,6 +465,7 @@ export function attachRig(c: Crane, rigId: string) {
   const lift = liftPoint(L, p);
   const dxz = Math.hypot(c.hook.x - lift.x, c.hook.z - lift.z);
   if (L.state !== 'rest') return say(c, 'Beban sedang tergantung.');
+  if (c.fly > 0 && c.jibUp < 1) return say(c, 'Boom wind belum di posisi kerja: naikkan dulu sebelum mengangkat beban.');
   if (dxz > 2.0) return say(c, `Posisikan hook tepat di atas beban (sekarang meleset ${dxz.toFixed(1)} m).`);
   if (c.hook.y - lift.y > p.height + 2.5) return say(c, 'Turunkan hook mendekati beban supaya rigger bisa memasang sling.');
   c.rig = rigId;
@@ -608,6 +661,12 @@ function craneHits(c: Crane): string | null {
   for (const b of OBSTACLES) for (const m of boxes) if (overlaps(m, b)) return nameOf(b.id);
   // the boom: points along it
   for (const p of boomPoints(c)) for (const b of OBSTACLES) if (inside(b, p.x, p.z, 0.4) && p.y > b.y0 && p.y < b.y1 + 0.4) return nameOf(b.id);
+  // nor through the loads (the one on the hook and blades turning with the hub aside)
+  for (const L of c.loads) {
+    if (c.loads[c.attached] === L || (L.def.bolt && L.placed)) continue;
+    const b = loadBox(L, L.x, L.y, L.z);
+    for (const p of boomPoints(c)) if (inside(b, p.x, p.z, 0.4) && p.y > b.y0 && p.y < b.y1 + 0.4) return L.def.name;
+  }
   return null;
 }
 
@@ -660,8 +719,28 @@ function upper(c: Crane, dt: number) {
     if (c.flyT >= 1) {
       const before = ropeAlong(c);
       c.fly = c.flyTarget;
+      // a wind boom comes off the ground lying in line with the boom; it is raised later, with the boom steep
+      c.jibUp = SPEC.model === 'zoomlion' && c.fly > 0 ? 0 : 1;
+      c.jibDown = false;
       c.drum += ropeAlong(c) - before;
       c.events.push('flyDone');
+      if (c.jibUp < 1) say(c, `Boom wind terpasang di tanah. Naikkan boom utama pelan sampai ${JIB_RAISE_DEG}°: ujungnya terseret di tanah, lalu boom wind terangkat sendiri ke posisi kerja.`);
+    }
+  }
+  // wind boom: raised from the ground to its offset once the main boom is steep, let down again before dismantling
+  if (c.fly > 0 && SPEC.model === 'zoomlion' && on) {
+    const steep = c.angle >= (JIB_RAISE_DEG * Math.PI) / 180;
+    if (c.jibDown) {
+      if (steep && c.jibUp > 0) {
+        c.jibUp = Math.max(0, c.jibUp - dt / 15);
+        if (c.jibUp === 0) say(c, 'Boom wind sudah rebah di tanah. Turunkan boom utama di bawah 6°, lalu pilih "Tanpa" lagi untuk membongkar.');
+      }
+    } else if (steep && c.jibUp < 1 && c.attached < 0) {
+      c.jibUp = Math.min(1, c.jibUp + dt / 15);
+      if (c.jibUp === 1) {
+        c.events.push('jibUp');
+        say(c, 'Boom wind terangkat ke posisi kerja. Telescope boom utama penuh, lalu siap mengangkat.');
+      }
     }
   }
 
@@ -1044,6 +1123,7 @@ function rcl(c: Crane) {
     note += ` · TIDAK RATA ${level.toFixed(1)}%`;
     kg *= 0.7;
   }
+  if (c.fly > 0 && c.jibUp < 1) note = 'Boom wind belum di posisi kerja: tidak boleh mengangkat';
   c.rating = { kg, note, estimated: chart.estimated };
   c.hookKg = c.tension / G;
   c.pct = kg > 0 ? c.hookKg / kg : c.hookKg > blk.mass * 1.6 ? 9 : 0;
@@ -1085,7 +1165,16 @@ function masses(c: Crane) {
   up(cwShare * 1000, 0, 2.6, SPEC.cwArm);
   const t = tipUpper(c);
   const bm = boomMass(c);
-  up(bm * 1000, 0, SPEC.pin.y + (t.y - SPEC.pin.y) * 0.42, SPEC.pin.z + (t.z - SPEC.pin.z) * 0.42);
+  if (c.fly > 0 && SPEC.model === 'zoomlion') {
+    // boom at its own centre, the wind boom at its middle (half of it on the ground while its tip rests there)
+    const flyKg = SPEC.mass.fly[FLY.lengths.indexOf(c.fly)] * 1000;
+    const L = c.length + SPEC.headLen;
+    const hy = SPEC.pin.y + L * Math.sin(c.angle);
+    const hz = SPEC.pin.z + L * Math.cos(c.angle);
+    up(bm * 1000 - flyKg, 0, SPEC.pin.y + (hy - SPEC.pin.y) * 0.42, SPEC.pin.z + (hz - SPEC.pin.z) * 0.42);
+    if (jibResting(c)) up(flyKg / 2, 0, hy, hz);
+    else up(flyKg, 0, (hy + t.y) / 2, (hz + t.z) / 2);
+  } else up(bm * 1000, 0, SPEC.pin.y + (t.y - SPEC.pin.y) * 0.42, SPEC.pin.z + (t.z - SPEC.pin.z) * 0.42);
   // the hook load at the hanging mass (or under the head while it still rests)
   const [lx, lz] = toLocal(c.x, c.z, c.heading, c.hook.x, c.hook.z);
   m.push({ kg: c.hookKg, x: lx, y: c.hook.y, z: lz });

@@ -22,6 +22,8 @@ export const EXCAVATION = { x0: -12, x1: 0, z0: -42, z1: -35, depth: 3 };
 export const POWERLINE = { x: 66, y: 11, z0: -60, z1: 60 }; // three 20 kV conductors at y 11, x 65.2/66/66.8
 /** Wind turbine under construction in the south-west corner: tower up, nacelle waiting (the Zoomlion's lift). */
 export const TOWER = { x: -62, z: -20, h: 148.5, rBase: 2.6, rTop: 1.9 };
+/** Gate in the west fence: the wind boom of the Zoomlion is laid out through it. */
+export const GATE_W = { z0: -58, z1: -42 };
 export const MIN_APPROACH = 3.05; // m, ≤ 50 kV (ASME B30.5 / OSHA 1926.1408 table A)
 
 /** Columns of the factory frame: 8 m bays. */
@@ -55,7 +57,8 @@ export const OBSTACLES: Obb[] = [
   box('cabin1', 30, -40, 6, 2.5, 0, 2.7),
   box('cabin2', 37, -40, 6, 2.5, 0, 2.7),
   box('fenceS', 0, -62, 140, 0.3, 0, 2.2),
-  box('fenceW', -70, 0, 0.3, 124, 0, 2.2),
+  box('fenceW1', -70, (-62 + GATE_W.z0) / 2, 0.3, GATE_W.z0 + 62, 0, 2.2),
+  box('fenceW2', -70, (GATE_W.z1 + 62) / 2, 0.3, 62 - GATE_W.z1, 0, 2.2),
   box('fenceN', 0, 62, 140, 0.3, 0, 2.2),
   ...[-50, -25, 0, 25, 50].map((z, i) => box(`pole${i}`, POWERLINE.x, z, 0.5, 0.5, 0, POWERLINE.y + 1)),
   box('tower', TOWER.x, TOWER.z, TOWER.rBase * 2, TOWER.rBase * 2, 0, TOWER.h - 0.1),
@@ -279,6 +282,9 @@ export const PRESS_SPOT = { x: -14, z: 2, heading: 0 };
 export const TOWER_SPOT = { x: -30, z: -20, heading: 0 };
 /** Where the crane starts: by the gate. */
 export const START = { x: -30, z: -50, heading: Math.PI / 2 };
+/** Clear strip south-west of the nacelle lift-plan spot, out through the west gate, where the wind boom is assembled on
+ *  the ground in line with the boom (from the boom head of the retracted boom). */
+export const JIB_LAYDOWN = { x: -30, z: -20, dx: -0.8, dz: -0.6, from: 17, len: 116, w: 6 };
 export const START_ZL = { x: -30, z: -49, heading: 0 };
 
 // ---------- rigging ----------

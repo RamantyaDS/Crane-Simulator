@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { rated, zoomlionKg } from './chart';
-import { attachRig, bladeTarget, boomInRotor, create, detachRig, radius, resetHook, setBlock, startEngine, step, tipWorld, type Crane, type LoadState } from './crane';
+import { attachRig, bladeTarget, boomInRotor, jibElevation, setFly, create, detachRig, radius, resetHook, setBlock, startEngine, step, tipWorld, type Crane, type LoadState } from './crane';
 import { toWorld } from './geom';
 import { plan } from './rigging';
-import { LOADS, RIGGING, TOWER, TOWER_SPOT } from './site';
+import { JIB_LAYDOWN, LOADS, RIGGING, TOWER, TOWER_SPOT } from './site';
 import { BLOCKS, SPEC, maxParts, setModel } from './spec';
 
 setModel('zoomlion');
@@ -84,7 +84,7 @@ describe('Zoomlion ZAT40000H763', () => {
   it('the heaviest block, fully reeved, still lowers the hook from the head of the full boom to the ground', () => {
     const c = create();
     startEngine(c);
-    run(c, 3);
+    run(c, 10);
     c.hook.y = 0.5;
     const b7 = BLOCKS.find((b) => b.id === 'b7')!;
     setBlock(c, 'b7', maxParts(b7.sheaves));
@@ -166,6 +166,64 @@ describe('Zoomlion ZAT40000H763', () => {
     const a = c.rotor;
     run(c, 10);
     expect(c.rotor - a).toBeGreaterThan(1);
+    expect(c.failed).toBe('');
+  });
+
+  it('wind boom: assembled on the ground in a clear strip, its tip rests there until the boom lifts it', () => {
+    const c = create();
+    Object.assign(c, TOWER_SPOT);
+    startEngine(c);
+    run(c, 2);
+    setFly(c, 111);
+    expect(c.flyTarget).toBe(0); // on its tyres: refused
+    c.beam = SPEC.outrigger.full.x;
+    c.beamSet = 'full';
+    c.autoLevel = true;
+    run(c, 40);
+    c.swingLock = c.swingPark = false;
+    setFly(c, 111); // boom pointing north over the site: the strip is not clear
+    expect(c.flyTarget).toBe(0);
+    expect(c.msg).toContain('tidak bebas');
+    c.slew = Math.atan2(JIB_LAYDOWN.dx, JIB_LAYDOWN.dz) - c.heading;
+    setFly(c, 111);
+    expect(c.flyTarget).toBe(111);
+    run(c, 21);
+    expect(c.fly).toBe(111);
+    expect(c.failed).toBe('');
+    expect(tipWorld(c).y).toBeLessThan(1.5); // lying on the ground, not below it
+    expect(c.rating.note).toContain('belum di posisi kerja'); // no lifting until it is up
+    expect(c.lockout).toBe(false); // but the boom can be raised
+    c.flyOffset = 15;
+    expect(jibElevation(c)).toBeGreaterThan(-0.06); // the offset does not push it into the ground
+    // raise the main boom: the tip drags on the ground, the crane stays standing
+    for (const deg of [10, 30, 50, 70]) {
+      c.angle = (deg * Math.PI) / 180;
+      run(c, 0.5);
+      expect(tipWorld(c).y).toBeLessThan(1.5);
+      expect(c.failed).toBe('');
+    }
+    c.angle = (78 * Math.PI) / 180;
+    run(c, 17); // steep: the wind boom is raised to its offset
+    expect(c.jibUp).toBe(1);
+    expect(c.failed).toBe('');
+    expect(tipWorld(c).y).toBeGreaterThan(100);
+    expect(jibElevation(c)).toBeCloseTo(c.angle - (15 * Math.PI) / 180, 5);
+    // taking it off: hook parked on the ground, wind boom let down onto the ground, then the boom comes down
+    setFly(c, 0);
+    expect(c.jibDown).toBe(false);
+    c.drum += 1500;
+    run(c, 25);
+    setFly(c, 0);
+    expect(c.jibDown).toBe(true);
+    run(c, 17);
+    expect(c.jibUp).toBe(0);
+    expect(tipWorld(c).y).toBeLessThan(1.5);
+    c.angle = 0.05;
+    run(c, 0.5);
+    setFly(c, 0);
+    expect(c.flyTarget).toBe(0);
+    run(c, 21);
+    expect(c.fly).toBe(0);
     expect(c.failed).toBe('');
   });
 });
