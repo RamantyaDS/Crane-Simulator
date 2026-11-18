@@ -98,13 +98,13 @@ const ZOOMLION: Spec = {
   angleMax: (87 * Math.PI) / 180,
   luffRate: ((3 * 87.6) / 360 * Math.PI) / 180, // raising takes 360 s on the real crane: 3× faster here
   teleRate: 75.6 / 240, // telescoping takes 30 min on the real crane: 7.5× faster here
-  fastNote: 'Dipercepat supaya bisa dimainkan: telescope 7,5× (aslinya 30 menit), luffing 3× (aslinya 360 s), hoist 3× (aslinya 120 m/menit tali tunggal).',
+  fastNote: 'Dipercepat supaya bisa dimainkan: telescope 7,5× (aslinya 30 menit), luffing 3× (aslinya 360 s), hoist 8× (aslinya 120 m/menit tali tunggal). Makin banyak jalur tali, makin lambat hook.',
   swingRate: (0.7 * 2 * Math.PI) / 60, // 0.7 rpm
   swingAccel: 0.01,
-  lineSpeed: [3.0, 6.0], // 120 m/min single line at high speed on the real crane: 3× here
-  linePull: 300000, // est.
-  ropeLimit: 25000, // kg per part (est., large-diameter rope)
-  ropeTotal: 2600, // est. (two winches)
+  lineSpeed: [8.0, 16.0], // 120 m/min single line at high speed on the real crane: 8× here (playable with heavy reeving)
+  linePull: 500000, // N per part, est. (the two winches together)
+  ropeLimit: 50000, // kg per part (est.: the two winch ropes reeved side by side count as one part)
+  ropeTotal: 18000, // m on both drums (est., generous so a fully reeved block can still reach the ground)
   outrigger: {
     full: { x: 8.0, z: 8.0 }, // 16 × 16 m
     mid: { x: 5.5, z: 8.0 },
@@ -152,11 +152,11 @@ const LB_BLOCKS: Block[] = [
 ];
 const ZL_BLOCKS: Block[] = [
   { id: 'ball', name: 'Hook ball 50 t', rating: 50000, sheaves: 0, mass: 2500 },
-  { id: 'b1', name: 'Hook block 250 t', rating: 250000, sheaves: 5, mass: 4500 },
-  { id: 'b4', name: 'Hook block 800 t', rating: 800000, sheaves: 16, mass: 12000 },
-  { id: 'b5', name: 'Hook block 1 600 t', rating: 1600000, sheaves: 32, mass: 22000 },
-  { id: 'b6', name: 'Hook block ganda 2 500 t', rating: 2500000, sheaves: 50, mass: 34000 },
-  { id: 'b7', name: 'Hook block ganda 4 000 t', rating: 4000000, sheaves: 80, mass: 52000 },
+  { id: 'b1', name: 'Hook block 250 t', rating: 250000, sheaves: 2, mass: 4500 },
+  { id: 'b4', name: 'Hook block 800 t', rating: 800000, sheaves: 8, mass: 12000 },
+  { id: 'b5', name: 'Hook block 1 600 t', rating: 1600000, sheaves: 16, mass: 22000 },
+  { id: 'b6', name: 'Hook block ganda 2 500 t', rating: 2500000, sheaves: 25, mass: 34000 },
+  { id: 'b7', name: 'Hook block ganda 4 000 t', rating: 4000000, sheaves: 40, mass: 52000 },
 ];
 export const BLOCKS: Block[] = [...LB_BLOCKS];
 export type BlockId = string;

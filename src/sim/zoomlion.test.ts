@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { rated, zoomlionKg } from './chart';
 import { attachRig, create, radius, resetHook, setBlock, startEngine, step, tipWorld, type Crane } from './crane';
 import { LOADS, TOWER, TOWER_SPOT } from './site';
-import { SPEC, setModel } from './spec';
+import { BLOCKS, SPEC, maxParts, setModel } from './spec';
 
 setModel('zoomlion');
 
@@ -77,5 +77,27 @@ describe('Zoomlion ZAT40000H763', () => {
     setRadius(c, rTower);
     expect(tipWorld(c).y).toBeGreaterThan(TOWER.h + 4.2 + rigH + 3);
     expect(LOADS.find((l) => l.id === 'nacelle')!.kg).toBe(150000);
+  });
+
+  it('the heaviest block, fully reeved, still lowers the hook from the head of the full boom to the ground', () => {
+    const c = create();
+    startEngine(c);
+    run(c, 3);
+    c.hook.y = 0.5;
+    const b7 = BLOCKS.find((b) => b.id === 'b7')!;
+    setBlock(c, 'b7', maxParts(b7.sheaves));
+    expect(c.parts).toBe(maxParts(b7.sheaves));
+    c.length = SPEC.boomMax;
+    c.angle = 1.3;
+    const top = tipWorld(c).y;
+    expect((SPEC.ropeTotal - (c.length + SPEC.headLen + 2)) / c.parts).toBeGreaterThan(top);
+    c.drum = c.length + SPEC.headLen + 2 + 2 * c.parts;
+    run(c, 0.5);
+    const y0 = c.hook.y;
+    run(c, 30, (c) => {
+      c.hoistLever = -1;
+      c.highSpeed = true;
+    });
+    expect(y0 - c.hook.y).toBeGreaterThan(4); // about 12 m/min with 81 parts
   });
 });

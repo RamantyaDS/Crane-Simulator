@@ -11,8 +11,8 @@ import { deflection, pads } from '../sim/crane';
 import { SPEC } from '../sim/spec';
 import { cr } from '../store';
 import { Bake } from './Bake';
-import { craneObj, Head, HookBlock, Lattice, RB, Ropes, sectionGeo } from './Crane';
-import { Box, Cyl, M } from './parts';
+import { craneObj, HookBlock, Lattice, RB, Ropes, sectionGeo } from './Crane';
+import { Box, Cyl, M, useCanvasTexture } from './parts';
 import { Wheel, type TyreSpec } from './tyre';
 
 const DECK = SPEC.deckY;
@@ -27,12 +27,13 @@ function Carrier() {
   return (
     <group>
       {/* frame, side skirts with the green line, deck */}
-      <RB s={[1.3, 0.8, L - 1.5]} r={0.05} m={M.lbGrey} position={[0, 1.15, 0]} />
+      <RB s={[1.3, 0.8, L - 1.5]} r={0.05} m={M.zlNavy} position={[0, 1.15, 0]} />
       <RB s={[2.96, 0.62, L - 1.2]} r={0.08} m={M.lbWhite} position={[0, DECK - 0.31, -0.3]} />
       {[1, -1].map((s) => (
         <group key={s}>
-          <Box s={[0.03, 0.09, L - 4]} m={M.zlGreen} position={[s * 1.495, DECK - 0.42, -0.6]} />
-          <Text position={[s * 1.5, DECK - 0.2, -2]} rotation={[0, (s * Math.PI) / 2, 0]} fontSize={0.34} color="#0f9d58" fontWeight={700}>
+          <Box s={[0.03, 0.09, L - 4]} m={M.lbRed} position={[s * 1.495, DECK - 0.42, -0.6]} />
+          <Box s={[0.03, 0.3, L - 1.4]} m={M.zlNavy} position={[s * 1.49, DECK - 0.75, -0.3]} />
+          <Text position={[s * 1.5, DECK - 0.2, -2]} rotation={[0, (s * Math.PI) / 2, 0]} fontSize={0.34} color="#1e3560" fontWeight={700}>
             ZOOMLION
           </Text>
         </group>
@@ -50,7 +51,7 @@ function Carrier() {
         <mesh position={[0.76, 2.6, 0.2]} material={M.glass}>
           <boxGeometry args={[0.02, 0.9, 1.5]} />
         </mesh>
-        <Box s={[1.52, 0.1, 2.32]} m={M.zlGreen} position={[0, 1.7, 0]} />
+        <Box s={[1.52, 0.1, 2.32]} m={M.lbGrey} position={[0, 1.7, 0]} />
         <Cyl r={0.08} l={0.12} m={M.amberLight} position={[0.4, 3.36, -0.6]} />
       </group>
       <RB s={[1.35, 1.1, 2.3]} r={0.1} m={M.lbWhite} position={[-0.78, 2.3, L / 2 - 1.25]} />
@@ -63,7 +64,7 @@ function Carrier() {
       <Box s={[2.9, 0.4, 0.3]} m={M.lbBlack} position={[0, 0.95, -L / 2 + 0.1]} />
       {/* outrigger boxes front and rear */}
       {[1, -1].map((e) => (
-        <RB key={e} s={[2.98, 0.9, 1.1]} r={0.05} m={M.lbWhite} position={[0, 1.4, e * OUT_Z]} />
+        <RB key={e} s={[2.98, 0.9, 1.1]} r={0.05} m={M.zlNavy} position={[0, 1.4, e * OUT_Z]} />
       ))}
     </group>
   );
@@ -96,9 +97,9 @@ function Outriggers() {
       {P.map(([sx, sz], i) => (
         <group key={i} position={[0, 1.4, sz * OUT_Z + (sx > 0 ? 0.25 : -0.25)]}>
           <group ref={(el) => el && (beams.current[i] = el)}>
-            <RB s={[BEAM, 0.6, 0.5]} r={0.04} m={M.lbWhite} />
+            <RB s={[BEAM, 0.6, 0.5]} r={0.04} m={M.zlNavy} />
             <group position={[(sx * BEAM) / 2, 0, 0]}>
-              <Cyl r={0.36} l={1.1} m={M.lbWhite} position={[0, 0.1, 0]} />
+              <Cyl r={0.36} l={1.1} m={M.zlNavy} position={[0, 0.1, 0]} />
               <group ref={(el) => el && (jacks.current[i] = el)}>
                 <Cyl r={0.24} l={1.2} m={M.chrome} position={[0, -0.1, 0]} />
                 <Cyl r={SPEC.outrigger.pad / 2} l={0.14} m={M.lbBlack} position={[0, -0.72, 0]} seg={28} />
@@ -156,10 +157,10 @@ function Upper() {
   return (
     <group>
       <Cyl r={2.0} l={0.3} m={M.lbBlack} position={[0, DECK + 0.15, 0]} seg={48} />
-      <RB s={[3.4, 1.3, 11.5]} r={0.08} m={M.lbWhite} position={[0, DECK + 0.95, -3.2]} />
+      <RB s={[3.4, 1.3, 11.5]} r={0.08} m={M.zlNavy} position={[0, DECK + 0.95, -3.2]} />
       {/* boom foot brackets and pin */}
       {[-1, 1].map((s) => (
-        <RB key={s} s={[0.3, 2.4, 2.6]} r={0.05} m={M.lbWhite} position={[s * 1.35, P.y - 0.9, P.z]} />
+        <RB key={s} s={[0.3, 2.4, 2.6]} r={0.05} m={M.zlGreen} position={[s * 1.35, P.y - 0.9, P.z]} />
       ))}
       <Cyl r={0.3} l={3.1} axis="x" m={M.steel} position={[0, P.y, P.z]} />
       {/* twin main winches behind the boom foot */}
@@ -173,7 +174,7 @@ function Upper() {
       ))}
       {/* power pack on the right, the operator's cab on the left front */}
       <RB s={[1.5, 1.8, 4.0]} r={0.1} m={M.lbWhite} position={[-2.3, DECK + 1.5, -4.2]} />
-      <Box s={[1.52, 0.12, 4.02]} m={M.zlGreen} position={[-2.3, DECK + 1.1, -4.2]} />
+      <Box s={[1.52, 0.12, 4.02]} m={M.zlNavy} position={[-2.3, DECK + 1.1, -4.2]} />
       <group position={[2.15, DECK + 0.6, 1.0]}>
         <RB s={[1.15, 2.1, 2.5]} r={0.1} m={M.lbWhite} position={[0, 1.05, 0]} />
         <mesh position={[0, 1.35, 1.26]} rotation={[-0.2, 0, 0]} material={M.glass}>
@@ -185,7 +186,7 @@ function Upper() {
         <mesh position={[0, 2.11, 0.4]} material={M.glass}>
           <boxGeometry args={[0.9, 0.02, 1.3]} />
         </mesh>
-        <Box s={[1.17, 0.1, 2.52]} m={M.zlGreen} position={[0, 0.35, 0]} />
+        <Box s={[1.17, 0.1, 2.52]} m={M.zlNavy} position={[0, 0.35, 0]} />
         <Cyl r={0.08} l={0.14} m={M.amberLight} position={[0, 2.2, -0.9]} />
       </group>
       <Box s={[0.9, 0.08, 1.4]} m={M.checker} position={[1.75, DECK + 0.62, 2.9]} />
@@ -207,9 +208,9 @@ function Counterweight() {
       <RB s={[6.0, 0.5, 4.4]} r={0.06} m={M.lbGrey} position={[0, 0, 0]} />
       {Array.from({ length: n }, (_, i) => (
         <group key={i} ref={(el) => el && (slabs.current[i] = el)} position={[0, 0.65 + i * 0.78, 0]}>
-          <RB s={[5.8, 0.74, 4.2]} r={0.06} m={i % 2 ? M.lbWhite : M.lbGrey} />
+          <RB s={[5.8, 0.74, 4.2]} r={0.06} m={i === n - 1 ? M.zlGreen : M.zlNavy} />
           {i === 1 && (
-            <Text position={[0, 0, -2.11]} rotation={[0, Math.PI, 0]} fontSize={0.45} color="#0f9d58" fontWeight={700}>
+            <Text position={[0, 0, -2.11]} rotation={[0, Math.PI, 0]} fontSize={0.45} color="#ffffff" fontWeight={700}>
               ZAT40000H
             </Text>
           )}
@@ -232,17 +233,54 @@ function Section({ i }: { i: number }) {
   const collar = useMemo(() => sectionGeo(s.w + 0.12, s.h + 0.12, 0.5), [s]);
   return (
     <group position={[0, -0.08 - i * 0.05, i === 0 ? -0.7 : 0]}>
-      <mesh geometry={geo} material={M.lbWhite} castShadow receiveShadow />
-      {i < SEC.length - 1 && <mesh geometry={collar} material={M.lbGrey} position={[0, 0, s.len - 0.3]} castShadow />}
+      <mesh geometry={geo} material={M.zlGreen} castShadow receiveShadow />
+      {i < SEC.length - 1 && <mesh geometry={collar} material={M.zlGreenDark} position={[0, 0, s.len - 0.3]} castShadow />}
       {i === 0 &&
         [1, -1].map((side) => (
           <group key={side}>
-            <Box s={[0.02, 0.22, s.len * 0.8]} m={M.zlGreen} position={[(side * (s.w + 0.04)) / 2, -s.h * 0.1, s.len * 0.5]} />
-            <Text position={[(side * (s.w + 0.05)) / 2, s.h * 0.18, s.len * 0.55]} rotation={[0, (side * Math.PI) / 2, 0]} fontSize={0.95} color="#0f9d58" fontWeight={700}>
-              ZOOMLION
+            <Box s={[0.02, 0.5, s.len * 0.75]} m={M.zlNavy} position={[(side * (s.w + 0.04)) / 2, -s.h * 0.28, s.len * 0.42]} />
+            <Text position={[(side * (s.w + 0.05)) / 2, s.h * 0.15, s.len * 0.55]} rotation={[0, (side * Math.PI) / 2, 0]} fontSize={1.0} color="#111111" fontWeight={700}>
+              ZAT40000H7
             </Text>
           </group>
         ))}
+    </group>
+  );
+}
+
+/** Boom head: a lime box around the sheave stack with the yellow and black chevrons on its nose (as on the photos). */
+function ZlHead() {
+  const chevron = useCanvasTexture(128, 128, (g) => {
+    g.fillStyle = '#f2c21c';
+    g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#151515';
+    for (let i = -1; i < 5; i++) {
+      g.beginPath();
+      g.moveTo(0, i * 32);
+      g.lineTo(64, i * 32 + 32);
+      g.lineTo(128, i * 32);
+      g.lineTo(128, i * 32 + 14);
+      g.lineTo(64, i * 32 + 46);
+      g.lineTo(0, i * 32 + 14);
+      g.fill();
+    }
+  });
+  return (
+    <group>
+      <RB s={[2.1, 2.4, 2.4]} r={0.12} m={M.zlGreen} position={[0, 0.1, 0.4]} />
+      {[-1, 1].map((k) => (
+        <Box key={k} s={[0.12, 2.8, 1.4]} m={M.zlGreenDark} position={[k * 1.1, -0.6, 1.4]} />
+      ))}
+      {/* sheave stack between the side plates */}
+      {Array.from({ length: 7 }, (_, i) => (
+        <Cyl key={i} r={1.1} l={0.16} axis="x" m={M.steel} position={[-0.75 + i * 0.25, -0.8, 1.7]} seg={28} />
+      ))}
+      <Cyl r={0.18} l={2.3} axis="x" m={M.chrome} position={[0, -0.8, 1.7]} />
+      <mesh position={[0, 0.3, 1.61]}>
+        <planeGeometry args={[1.8, 1.6]} />
+        <meshStandardMaterial map={chevron} roughness={0.5} polygonOffset polygonOffsetFactor={-2} />
+      </mesh>
+      <Cyl r={0.08} l={0.15} m={M.amberLight} position={[0.7, 1.4, 0.2]} />
     </group>
   );
 }
@@ -264,7 +302,11 @@ function Boom() {
   const rod = useRef<THREE.Mesh>(null);
   const guys = useRef<THREE.Mesh[]>([]);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3() }), []);
-  const tips = useMemo(() => [1, -1].map((s) => new THREE.Vector3(s * Math.sin(MAST.splay) * MAST.len, SEC[0].h / 2 + Math.cos(MAST.splay) * MAST.len, MAST.z)), []);
+  const masts = useRef<THREE.Group[]>([]);
+  const tips = useMemo(() => [new THREE.Vector3(), new THREE.Vector3()], []);
+  const base = useMemo(() => new THREE.Vector3(0, SEC[0].h / 2, MAST.z), []);
+  const fwd = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+  const dir = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     const sag = deflection(cr) / Math.max(20, cr.length);
     const ang = cr.angle - sag * 0.6 - cr.boomBend * 0.9;
@@ -274,12 +316,23 @@ function Boom() {
     const headZ = cr.length + SPEC.headLen - 0.8;
     head.current!.position.z = headZ;
     craneObj.head = head.current;
-    // superlift guys: mast tips to the boom head (front) and to the boom foot (back)
+    // superlift masts: folded forward on top of the boom for travel, raised into the Y once the boom lifts
+    const up = THREE.MathUtils.smoothstep(cr.angle, 0.04, 0.2);
     tmp.c.set(0, 1.0, headZ);
     tmp.b.set(0, SEC[0].h / 2, -0.3);
     tips.forEach((t, k) => {
-      if (guys.current[k * 2]) placeRope(guys.current[k * 2], t, tmp.c);
-      if (guys.current[k * 2 + 1]) placeRope(guys.current[k * 2 + 1], t, tmp.b);
+      const s = k ? -1 : 1;
+      dir.set(s * (0.07 + (Math.sin(MAST.splay) - 0.07) * up), 0.03 + (Math.cos(MAST.splay) - 0.03) * up, 1 - up).normalize();
+      masts.current[k]?.quaternion.setFromUnitVectors(fwd, dir);
+      t.copy(base).addScaledVector(dir, MAST.len);
+      for (const [g, to] of [
+        [guys.current[k * 2], tmp.c],
+        [guys.current[k * 2 + 1], tmp.b],
+      ] as const) {
+        if (!g) continue;
+        g.visible = up > 0.6;
+        if (g.visible) placeRope(g, t, to);
+      }
     });
     // wind boom: grows out of the head while it is fitted
     const showLen = cr.flyTarget > 0 ? cr.flyTarget : cr.fly;
@@ -303,7 +356,7 @@ function Boom() {
   return (
     <group position={[0, SPEC.pin.y, SPEC.pin.z]}>
       <group ref={luff}>
-        <mesh position={[0, 0, 3.7]} rotation={[Math.PI / 2, 0, 0]} material={M.lbWhite} castShadow>
+        <mesh position={[0, 0, 3.7]} rotation={[Math.PI / 2, 0, 0]} material={M.steel} castShadow>
           <cylinderGeometry args={[0.62, 0.62, 7.4, 28]} />
         </mesh>
         <Cyl r={0.35} l={1.8} axis="x" m={M.steel} />
@@ -318,9 +371,9 @@ function Boom() {
           </group>
         ))}
         {/* Y superlift: two lattice masts splayed sideways, their guy ropes */}
-        {tips.map((t, k) => (
-          <group key={k} position={[0, SEC[0].h / 2, MAST.z]} quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), t.clone().sub(new THREE.Vector3(0, SEC[0].h / 2, MAST.z)).normalize())}>
-            <Lattice len={MAST.len} w={1.1} m={M.lbWhite} />
+        {tips.map((_, k) => (
+          <group key={k} position={[0, SEC[0].h / 2, MAST.z]} ref={(el) => el && (masts.current[k] = el)}>
+            <Lattice len={MAST.len} w={1.1} m={M.zlGreen} />
             <Cyl r={0.35} l={0.3} axis="x" m={M.steel} position={[0, 0, MAST.len]} />
           </group>
         ))}
@@ -330,15 +383,13 @@ function Boom() {
           </mesh>
         ))}
         <group ref={head}>
-          <group scale={3.2}>
-            <Head />
-          </group>
+          <ZlHead />
           {/* lattice wind boom: 51 m, + 30 m, + 30 m */}
           <group ref={wind} position={[0, 1.2, 1.4]}>
             {windLen.map((len, i) => (
               <group key={i} ref={(el) => el && (parts.current[i] = el)} position={[0, 0, windLen.slice(0, i).reduce((a, b) => a + b, 0)]}>
-                <Lattice len={len} w={2.4} m={M.lbWhite} />
-                {i === 0 && <Box s={[2.6, 0.2, 0.6]} m={M.zlGreen} position={[0, -0.6, 0.5]} />}
+                <Lattice len={len} w={2.4} m={M.zlGreen} />
+                {i === 0 && <Box s={[2.6, 0.2, 0.6]} m={M.zlNavy} position={[0, -0.6, 0.5]} />}
               </group>
             ))}
           </group>

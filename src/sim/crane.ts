@@ -729,6 +729,7 @@ function hookAndLoad(c: Crane, dt: number) {
   }
   const lineV = SPEC.lineSpeed[c.highSpeed ? 1 : 0] * f * (1 - 0.35 * Math.min(1, c.tension / Math.max(1, pull)));
   const dDrum = -hv * lineV * dt; // paying out = lowering
+  if (hv < 0 && c.drum + dDrum >= SPEC.ropeTotal - 0.01 && !c.msg) say(c, `Tali di drum habis (${SPEC.ropeTotal} m dibagi ${parts} jalur): hook tidak bisa turun lagi. Kurangi jalur tali.`);
   c.drum = clamp(c.drum + dDrum, ropeAlong(c) + 0.3 * parts, SPEC.ropeTotal);
   const prevRope = c.ropeLen;
 
