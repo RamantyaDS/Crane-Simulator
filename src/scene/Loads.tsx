@@ -20,8 +20,9 @@ const C = {
   chillerDark: new THREE.MeshStandardMaterial({ color: '#2f4f6f', metalness: 0.35, roughness: 0.5 }),
   concrete: new THREE.MeshStandardMaterial({ color: '#a7a59e', metalness: 0, roughness: 0.92 }),
   steel: new THREE.MeshStandardMaterial({ color: '#5d6166', metalness: 0.6, roughness: 0.55 }),
-  press: new THREE.MeshStandardMaterial({ color: '#3f6f5a', metalness: 0.35, roughness: 0.45 }),
-  pressDark: new THREE.MeshStandardMaterial({ color: '#23302b', metalness: 0.45, roughness: 0.5 }),
+  bigTank: new THREE.MeshStandardMaterial({ color: '#7f8c8f', metalness: 0.45, roughness: 0.42 }),
+  bigDark: new THREE.MeshStandardMaterial({ color: '#3d4649', metalness: 0.5, roughness: 0.5 }),
+  fin: new THREE.MeshStandardMaterial({ color: '#8d999c', metalness: 0.5, roughness: 0.4 }),
 };
 
 function Transformer({ d }: { d: LoadDef }) {
@@ -176,25 +177,72 @@ function Tank({ d }: { d: LoadDef }) {
   );
 }
 
-function Press({ d }: { d: LoadDef }) {
+/** Main power transformer, shipped without oil: tank with stiffener ribs, radiator banks with fans on both long
+ *  sides, conservator on brackets, three tall HV bushings and the LV bushings, tap changer, nameplate, skids. */
+function BigTrafo({ d }: { d: LoadDef }) {
   const [sx, sy, sz] = d.size;
+  const tankH = 2.95;
   return (
     <group>
-      <Box s={[sx, 0.9, sz]} m={C.press} position={[0, 0.45, 0]} />
+      {/* skid base and the tank with its stiffener ribs */}
+      <Box s={[sx * 0.92, 0.3, sz * 0.62]} m={C.bigDark} position={[0, 0.15, 0]} />
+      <Box s={[sx * 0.88, tankH, sz * 0.58]} m={C.bigTank} position={[0, 0.3 + tankH / 2, 0]} />
+      {Array.from({ length: 7 }, (_, i) =>
+        [-1, 1].map((s) => <Box key={`${i}${s}`} s={[0.08, tankH - 0.1, 0.06]} m={C.bigTank} position={[-sx * 0.38 + i * (sx * 0.127), 0.3 + tankH / 2, s * sz * 0.3]} />),
+      )}
+      <Box s={[sx * 0.92, 0.12, sz * 0.62]} m={C.bigDark} position={[0, 0.3 + tankH + 0.06, 0]} />
+      {/* radiator banks: many thin fins on headers, cooling fans underneath */}
       {[-1, 1].map((s) => (
-        <Box key={s} s={[0.45, sy - 1.6, sz * 0.9]} m={C.press} position={[s * (sx / 2 - 0.25), 0.9 + (sy - 1.6) / 2, 0]} />
-      ))}
-      <Box s={[sx, 0.85, sz]} m={C.press} position={[0, sy - 0.42, 0]} />
-      <Box s={[sx * 0.62, 0.7, sz * 0.7]} m={C.pressDark} position={[0, 2.1, 0]} />
-      <Box s={[sx * 0.7, 0.12, sz * 0.75]} m={M.steel} position={[0, 0.96, 0]} />
-      <Text position={[0, sy - 0.42, sz / 2 + 0.01]} fontSize={0.22} color="#f2f2ee" fontWeight={700}>
-        PRESS 1000 kN
-      </Text>
-      {d.points.map((p, i) => (
-        <group key={i} position={[p[0], p[1], p[2]]}>
-          <Cyl r={0.12} l={0.25} m={M.hookYellow} />
+        <group key={s} position={[0, 0, s * sz * 0.42]}>
+          {Array.from({ length: 16 }, (_, i) => (
+            <Box key={i} s={[0.05, 2.0, 0.5]} m={C.fin} position={[-sx * 0.36 + i * (sx * 0.048), 1.75, 0]} />
+          ))}
+          <Cyl r={0.07} l={sx * 0.78} axis="x" m={C.bigDark} position={[0, 2.8, -s * 0.12]} />
+          <Cyl r={0.07} l={sx * 0.78} axis="x" m={C.bigDark} position={[0, 0.72, -s * 0.12]} />
+          {[-1.2, 0, 1.2].map((x) => (
+            <group key={x} position={[x, 0.45, 0]}>
+              <Cyl r={0.3} l={0.16} m={C.bigDark} />
+              <Cyl r={0.26} l={0.17} m={M.black} />
+            </group>
+          ))}
         </group>
       ))}
+      {/* conservator on brackets, Buchholz pipe */}
+      <group position={[-0.3, 0.3 + tankH + 0.75, -sz * 0.18]}>
+        <Cyl r={0.38} l={sx * 0.62} axis="x" m={C.bigTank} />
+        {[-1, 1].map((k) => (
+          <Box key={k} s={[0.1, 0.6, 0.1]} m={C.bigDark} position={[k * sx * 0.22, -0.4, 0]} />
+        ))}
+        <Cyl r={0.06} l={0.7} m={C.bigDark} position={[sx * 0.15, -0.45, 0.25]} />
+      </group>
+      {/* HV bushings (150 kV): tall brown porcelain with sheds and terminal caps */}
+      {[-1.1, 0, 1.1].map((x) => (
+        <group key={x} position={[x * 0.9 + 0.2, 0.3 + tankH + 0.12, sz * 0.12]}>
+          <Cyl r={0.2} l={0.25} m={C.bigDark} position={[0, 0.12, 0]} />
+          <Cyl r={0.12} r2={0.08} l={1.9} m={C.porcelain} position={[0, 1.2, 0]} />
+          {Array.from({ length: 9 }, (_, i) => (
+            <Cyl key={i} r={0.17 - i * 0.008} l={0.04} m={C.porcelain} position={[0, 0.4 + i * 0.18, 0]} />
+          ))}
+          <Cyl r={0.09} l={0.15} m={M.steel} position={[0, 2.22, 0]} />
+        </group>
+      ))}
+      {/* LV bushings (20 kV) and the on-load tap changer */}
+      {[-0.35, 0, 0.35].map((x) => (
+        <group key={x} position={[x - 1.4, 0.3 + tankH + 0.12, sz * 0.18]}>
+          <Cyl r={0.07} l={0.6} m={C.porcelain} position={[0, 0.3, 0]} />
+        </group>
+      ))}
+      <Box s={[0.7, 1.2, 0.5]} m={C.bigDark} position={[sx * 0.33, 0.3 + tankH + 0.6, -sz * 0.05]} />
+      {/* lifting lugs and the nameplate */}
+      {d.points.map((p, i) => (
+        <group key={i} position={[p[0], p[1], p[2] * 0.25]}>
+          <Box s={[0.12, 0.3, 0.12]} m={M.hookYellow} />
+        </group>
+      ))}
+      <Box s={[0.9, 0.55, 0.01]} m={M.white} position={[-0.6, 1.6, sz * 0.295]} />
+      <Text position={[-0.6, 1.68, sz * 0.302]} fontSize={0.09} color="#1b1b1b" maxWidth={0.85} textAlign="center">
+        {'TRAFO DAYA\n150/20 kV · 80 MVA\nONAN/ONAF · 100 t'}
+      </Text>
     </group>
   );
 }
@@ -206,7 +254,7 @@ function LoadMesh({ d }: { d: LoadDef }) {
   if (d.look === 'slab') return <Slab d={d} />;
   if (d.look === 'beams') return <Beams d={d} />;
   if (d.look === 'tank') return <Tank d={d} />;
-  return <Press d={d} />;
+  return <BigTrafo d={d} />;
 }
 
 function OneLoad({ L }: { L: LoadState }) {

@@ -1,10 +1,10 @@
-// The factory construction site drawn from sim/site.ts: gravel yard with the soft fill strip and the excavation, the
+// The factory construction site drawn from sim/site.ts: hard compacted yard with the excavation, the
 // half-built steel frame with its mezzanine and part of the roof, the annex, genset house, transformer bay, the
-// foundations and timbers, the press lift plan marking, the 20 kV line, site cabins, fence and a tree line.
+// foundations and timbers, the main transformer lift plan marking, the 20 kV line, site cabins, fence and a tree line.
 import { Text } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GENHOUSE, LOADS, POWERLINE, PRESS_SPOT, SOFT } from '../sim/site';
+import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GENHOUSE, LOADS, POWERLINE, PRESS_SPOT } from '../sim/site';
 import { Bake } from './Bake';
 import { Box, Cyl, M, useCanvasTexture } from './parts';
 
@@ -53,14 +53,6 @@ function Ground() {
         <planeGeometry args={[420, 420]} />
         <meshStandardMaterial map={gravel} roughness={0.95} />
       </mesh>
-      {/* soft fill, darker and wet */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(SOFT.x0 + SOFT.x1) / 2, 0.01, (SOFT.z0 + SOFT.z1) / 2]} receiveShadow>
-        <planeGeometry args={[SOFT.x1 - SOFT.x0, SOFT.z1 - SOFT.z0]} />
-        <meshStandardMaterial color="#5f4a33" roughness={0.75} metalness={0.05} />
-      </mesh>
-      <Text position={[(SOFT.x0 + SOFT.x1) / 2, 0.03, SOFT.z1 + 0.6]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.6} color="#ffcf3a">
-        TANAH URUG LUNAK
-      </Text>
       {/* the slab inside the factory */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(FACTORY.x0 + FACTORY.x1) / 2, 0.02, (FACTORY.z0 + FACTORY.z1) / 2]} receiveShadow material={S.slab}>
         <planeGeometry args={[FACTORY.x1 - FACTORY.x0, FACTORY.z1 - FACTORY.z0]} />
@@ -231,12 +223,12 @@ function LiftPlan() {
           <planeGeometry args={[2.4, 0.1]} />
         </mesh>
       ))}
-      {/* the 3.5 m radius the press lift must stay inside */}
+      {/* the 3.5 m radius the transformer lift must stay inside */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} material={ring}>
         <ringGeometry args={[3.45, 3.55, 64]} />
       </mesh>
       <Text position={[0, 0.02, -4.4]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.45} color="#ff6a00">
-        LIFT PLAN PRESS: PUSAT SWING DI SINI · R MAKS 3,5 m
+        LIFT PLAN TRAFO 100 t: PUSAT SWING DI SINI · R MAKS 3,5 m
       </Text>
     </group>
   );

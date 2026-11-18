@@ -672,7 +672,7 @@ export function App() {
             <h1>Simulator Crane Link-Belt RTC-80160 Series II</h1>
             <p>
               Rough terrain crane 145 ton (Cummins 345 hp, boom 6 seksi pin & latch 12,9–59,5 m, fly 9,4/16,8 m) di proyek pabrik. Pasang genset, trafo, chiller, pelat
-              precast, balok baja, tangki, sampai mesin press 100 ton yang memakai 97% kapasitas, memakai load chart resmi Link-Belt.
+              precast, balok baja, tangki, sampai trafo daya 100 ton yang memakai 98% kapasitas, memakai load chart resmi Link-Belt.
             </p>
             <ol>
               <li>Jalankan crane ke dekat beban dan tujuannya (mode jalan, empat mode setir).</li>

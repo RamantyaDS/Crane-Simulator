@@ -125,27 +125,27 @@ describe('RTC-80160 crane', () => {
     expect(hangLen(c)).toBeGreaterThan(0.9);
   });
 
-  it('lifts the 100 t press at 3.4 m radius at about 97 % of the chart, and the RCL locks boom-down', () => {
+  it('lifts the 100 t main transformer at 3.4 m radius at about 98 % of the chart, and the RCL locks boom-down', () => {
     const c = ready({ ...PRESS_SPOT });
     c.mats = true; // 104 t on the hook: pontoons alone would sink into the gravel
     onOutriggers(c);
-    const press = LOADS.findIndex((l) => l.id === 'press');
+    const press = LOADS.findIndex((l) => l.id === 'bigtrafo');
     c.target = press;
     // reeve the 7-sheave block with 12 parts and swing over the press
     c.hook.y = 0.5;
     setBlock(c, 'b7', 12);
     expect(c.block).toBe('b7');
-    c.slew = Math.PI / 2; // the press waits on the east side (carrier left), its pit on the west
+    c.slew = Math.PI / 2; // the transformer waits on the east side (carrier left), its pad on the west
     setRadius(c, 12.88, 3.4);
     // hook over the lifting point and low
     const L = c.loads[press];
     // hook lowered to just above the press with the rigging slack
     const tip = tipWorld(c);
-    const rigH = 4 * Math.cos(Math.asin(1.5 / 4)) + 1.55;
-    c.drum = c.length + SPEC.headLen + 2 + (tip.y - (L.y + 4.2) - rigH - 0.6 - 0.1) * c.parts;
+    const rigH = 4.5 * Math.cos(Math.asin(2 / 4.5)) + 1.55;
+    c.drum = c.length + SPEC.headLen + 2 + (tip.y - (L.y + 3.3) - rigH - 0.6 - 0.1) * c.parts;
     resetHook(c);
-    attachRig(c, 'sp3h');
-    expect(c.rig).toBe('sp3h');
+    attachRig(c, 'sp4h');
+    expect(c.rig).toBe('sp4h');
     expect(c.rigPlan?.ok).toBe(true);
     run(c, 60, (c) => (c.hoistLever = c.loads[press].state === 'air' ? 0 : 1));
     expect(c.loads[press].state).toBe('air');
@@ -175,20 +175,14 @@ describe('RTC-80160 crane', () => {
     expect(d.x).toBeGreaterThan(-40.5);
   });
 
-  it('pads sink into soft fill without mats, not with them', () => {
-    const soft = ready({ x: -6, z: -29, heading: Math.PI / 2 });
-    onOutriggers(soft);
-    soft.slew = Math.PI / 2;
-    setRadius(soft, 12.88, 6);
-    run(soft, 30);
-    expect(Math.max(...soft.sink)).toBeGreaterThan(0.02);
-    const mats = ready({ x: -6, z: -29, heading: Math.PI / 2 });
-    mats.mats = true;
-    onOutriggers(mats);
-    mats.slew = Math.PI / 2;
-    setRadius(mats, 12.88, 6);
-    run(mats, 30);
-    expect(Math.max(...mats.sink)).toBeLessThan(0.005);
+  it('the yard is hard everywhere: pads do not sink, the crane stays level', () => {
+    const c = ready({ x: -6, z: -29, heading: Math.PI / 2 });
+    onOutriggers(c);
+    c.slew = Math.PI / 2;
+    setRadius(c, 12.88, 3.5);
+    run(c, 30);
+    expect(Math.max(...c.sink)).toBe(0);
+    expect(Math.abs(c.pitch) + Math.abs(c.roll)).toBeLessThan(0.002);
   });
 
   it('rigging plans: spreader for the genset, a steep short sling refused, the tank on 35 t legs', () => {
@@ -199,7 +193,7 @@ describe('RTC-80160 crane', () => {
     expect(plan(load('beams'), rig('s2-4-10')).ok).toBe(false);
     expect(plan(load('beams'), rig('s2-6-20')).ok).toBe(true);
     expect(plan(load('tank'), rig('s2-6-35')).ok).toBe(true);
-    expect(plan(load('press'), rig('sp3h')).ok).toBe(true);
+    expect(plan(load('bigtrafo'), rig('sp4h')).ok).toBe(true);
   });
 });
 

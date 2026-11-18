@@ -1,12 +1,13 @@
 // Factory construction site: a half-built steel-frame factory with a mezzanine deck and an annex roof, a genset house,
-// a transformer bay, a tank foundation and a press pit; compacted gravel with a soft fill strip by an excavation and
+// a transformer bay, a tank foundation and the main transformer pad; hard compacted ground everywhere, an excavation and
 // a 20 kV overhead line along the east edge. The loads wait in the laydown yard; each has a marked destination.
 // World axes: x east, z north, y up, metres.
 import { inside, type Obb } from './geom';
 
-export type Ground = 'gravel' | 'soft' | 'concrete';
+export type Ground = 'gravel' | 'concrete';
 /** Allowable ground bearing pressure (kPa) of each surface. */
-export const BEARING: Record<Ground, number> = { gravel: 600, soft: 110, concrete: 1500 }; // kPa: well-compacted gravel, loose fill, slab
+// kPa: the whole yard is stabilised and compacted (above a pontoon's 2 075 kPa at full jack reaction), the slab even more
+export const BEARING: Record<Ground, number> = { gravel: 2500, concrete: 3000 };
 
 function box(id: string, x: number, z: number, sx: number, sz: number, y0: number, y1: number, yaw = 0): Obb {
   return { id, x, z, hx: sx / 2, hz: sz / 2, yaw, y0, y1 };
@@ -16,7 +17,6 @@ function box(id: string, x: number, z: number, sx: number, sz: number, y0: numbe
 export const FACTORY = { x0: -6, x1: 34, z0: 14, z1: 44, eave: 12, mezz: { x0: 18, x1: 34, z0: 30, z1: 44, y: 6 } };
 export const ANNEX = { x0: 40, x1: 54, z0: 12, z1: 26, h: 8 };
 export const GENHOUSE = { x: -24, z: 24, w: 9, d: 5.5, h: 4 };
-export const SOFT = { x0: -14, x1: 2, z0: -34, z1: -24 }; // soft fill beside the excavation
 export const EXCAVATION = { x0: -12, x1: 0, z0: -42, z1: -35, depth: 3 };
 export const POWERLINE = { x: 66, y: 11, z0: -60, z1: 60 }; // three 20 kV conductors at y 11, x 65.2/66/66.8
 export const MIN_APPROACH = 3.05; // m, ≤ 50 kV (ASME B30.5 / OSHA 1926.1408 table A)
@@ -57,7 +57,6 @@ export const OBSTACLES: Obb[] = [
 ];
 
 export function groundAt(x: number, z: number): Ground {
-  if (x > SOFT.x0 && x < SOFT.x1 && z > SOFT.z0 && z < SOFT.z1) return 'soft';
   if (x > FACTORY.x0 && x < FACTORY.x1 && z > FACTORY.z0 && z < FACTORY.z1) return 'concrete';
   return 'gravel';
 }
@@ -84,7 +83,7 @@ export interface LoadDef {
   start: { x: number; z: number; yaw: number; y: number };
   dest: { x: number; z: number; yaw: number; y: number; label: string };
   note: string;
-  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'press';
+  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo';
 }
 
 export const FOUNDATIONS: { id: string; b: Obb; y: number }[] = [];
@@ -201,26 +200,26 @@ export const LOADS: LoadDef[] = [
     look: 'tank',
   },
   {
-    id: 'press',
-    name: 'Mesin press stamping 100 t (BEBAN MAKSIMAL)',
+    id: 'bigtrafo',
+    name: 'Trafo daya 150/20 kV 80 MVA (BEBAN MAKSIMAL)',
     kg: 100000,
-    size: [3.0, 4.2, 2.5],
-    cg: [0.1, 1.8, 0],
+    size: [4.6, 3.4, 3.0],
+    cg: [0.15, 1.5, 0],
     points: [
-      [-1.2, 4.2, 0.9],
-      [1.2, 4.2, 0.9],
-      [1.2, 4.2, -0.9],
-      [-1.2, 4.2, -0.9],
+      [-1.9, 3.3, 1.25],
+      [1.9, 3.3, 1.25],
+      [1.9, 3.3, -1.25],
+      [-1.9, 3.3, -1.25],
     ],
     pairs: [[0, 1, 2, 3]],
     start: { x: -14 + 3.4, z: 2, yaw: Math.PI / 2, y: 0.25 },
-    dest: dest('press', -14 - 3.4, 2, Math.PI / 2, 0.4, 3.4, 3.0, 'Pondasi press', 0.4),
-    note: 'Dengan hook block 7 sheave dan spreader berat, total ±103 t: hanya boleh di radius ≤ 3,5 m (chart 106,6 t), CW 26,7 t, outrigger penuh. Posisikan crane di titik "lift plan".',
-    look: 'press',
+    dest: dest('bigtrafo', -14 - 3.4, 2, Math.PI / 2, 0.4, 5.2, 3.4, 'Pondasi trafo utama', 0.4),
+    note: 'Trafo gardu induk tanpa minyak (transport weight 100 t). Dengan hook block 7 sheave dan spreader berat 4 m total ±104 t: hanya boleh di radius ≤ 3,5 m (chart 106,6 t), CW 26,7 t, outrigger penuh. Posisikan crane di titik "lift plan".',
+    look: 'bigtrafo',
   },
 ];
 
-/** Where the lift plan puts the crane for the press (between the press and its pit). */
+/** Where the lift plan puts the crane for the main transformer (between its skids and its pad). */
 export const PRESS_SPOT = { x: -14, z: 2, heading: 0 };
 /** Where the crane starts: by the gate. */
 export const START = { x: -30, z: -50, heading: Math.PI / 2 };
@@ -248,4 +247,5 @@ export const RIGGING: RigItem[] = [
   { id: 'sp6', name: 'Spreader bar 5,5 m (25 t) + sling 6 m', kind: 'spreader', legLen: 6, wll: 16000, span: 5.5, spreaderWll: 25000, kg: 900 },
   { id: 'sp9', name: 'Spreader bar 9 m (20 t) + sling 6 m', kind: 'spreader', legLen: 6, wll: 11200, span: 9, spreaderWll: 20000, kg: 1150 },
   { id: 'sp3h', name: 'Spreader berat 3 m (150 t) + sling 4 m', kind: 'spreader', legLen: 4, wll: 60000, span: 3, spreaderWll: 150000, kg: 2200 },
+  { id: 'sp4h', name: 'Spreader berat 4 m (150 t) + sling 4,5 m', kind: 'spreader', legLen: 4.5, wll: 63000, span: 4, spreaderWll: 150000, kg: 2350 },
 ];

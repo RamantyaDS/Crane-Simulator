@@ -20,7 +20,7 @@ Bagian dari seri simulator Traknus: [forklift](https://ramantyads.github.io/Fork
 - **Bahaya**: jaringan SUTM 20 kV (jarak aman 3,05 m), galian, tanah lunak, kolom dan rangka gedung.
 
 ## Beban
-Genset Traknus 2250 kVA 14,8 t (model dari Genset Simulator), trafo 45 t, chiller 9,2 t (atap annex 8 m), pelat precast 12 t (mezzanine), bundel balok WF 7,4 t, tangki 60 t, dan **mesin press 100 t**. Press adalah beban maksimal: dengan hook block 7 sheave dan spreader berat totalnya ±104 t, atau 97,6% chart di radius 3,5 m, jadi hanya bisa dilakukan dari titik lift plan.
+Genset Traknus 2250 kVA 14,8 t (model dari Genset Simulator), trafo 45 t, chiller 9,2 t (atap annex 8 m), pelat precast 12 t (mezzanine), bundel balok WF 7,4 t, tangki 60 t, dan **trafo daya 150/20 kV 80 MVA 100 t**. Trafo ini adalah beban maksimal: dengan hook block 7 sheave dan spreader berat 4 m totalnya ±104 t, atau 97,8% chart di radius 3,5 m, jadi hanya bisa dilakukan dari titik lift plan. Seluruh lokasi berupa tanah keras (stabilisasi/beton), jadi pontoon tidak amblas.
 
 ## Kontrol
 - **Mode crane**: A/D swing, W/S boom, E/Q telescope, R/F hoist (Shift = cepat), Spasi rem swing, L swing lock, Z/X tag line.
