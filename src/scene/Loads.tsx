@@ -681,7 +681,13 @@ function Hardware({ hook, ends }: { hook: () => THREE.Vector3 | null; ends: () =
 function pointWorld(L: LoadState, p: [number, number, number], out: THREE.Vector3) {
   const s = Math.sin(L.yaw);
   const c = Math.cos(L.yaw);
-  return out.set(L.x + p[0] * c + p[2] * s, L.y + p[1], L.z - p[0] * s + p[2] * c);
+  let [x, y, z] = p;
+  if (L.def.upend && (L.up ?? 1) < 1) {
+    // a vessel lying or being upended: its axis tips from +z up to +y about the foot
+    const a = ((1 - (L.up ?? 1)) * Math.PI) / 2;
+    [y, z] = [p[1] * Math.cos(a) - p[2] * Math.sin(a), p[1] * Math.sin(a) + p[2] * Math.cos(a)];
+  }
+  return out.set(L.x + x * c + z * s, L.y + y, L.z - x * s + z * c);
 }
 
 function Rigging() {
