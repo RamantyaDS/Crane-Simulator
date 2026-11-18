@@ -83,7 +83,7 @@ function lattice(len: number, w0: number, w1: number, chord = 0.24, lace = 0.1) 
   return { chords: merged(chords), laces: merged(laces) };
 }
 
-function Lat({ len, w0, w1 = w0, chord, lace, ...p }: { len: number; w0: number; w1?: number; chord?: number; lace?: number } & JSX.IntrinsicElements['group']) {
+export function Lat({ len, w0, w1 = w0, chord, lace, ...p }: { len: number; w0: number; w1?: number; chord?: number; lace?: number } & JSX.IntrinsicElements['group']) {
   const g = useMemo(() => lattice(len, w0, w1, chord, lace), [len, w0, w1, chord, lace]);
   return (
     <group {...p}>

@@ -8,6 +8,7 @@ import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GATE_W, GENHOUSE, JIB
 import { SPEC } from '../sim/spec';
 import { Bake } from './Bake';
 import { bladeSection } from './Loads';
+import { Lat } from './Sany';
 import { Box, Cyl, M, useCanvasTexture } from './parts';
 
 const S = {
@@ -267,6 +268,67 @@ function WindTower() {
   );
 }
 
+const SRED = new THREE.MeshStandardMaterial({ color: '#d0142c', metalness: 0.3, roughness: 0.4 });
+
+/** The red set at the lower left of the user's first SANY photo: a luffing jib lying on its assembly stands, the red
+ *  A-frame stand at its root with a jib hook block parked on top, hung on red tension bars. West of the lift spot,
+ *  beyond the reach of the superlift tray. */
+function JibStand() {
+  const x0 = SANY_SPOT.x - 52;
+  const z = SANY_SPOT.z - 6;
+  const y = 6.5; // lattice centre line on the stands
+  const len = 42;
+  const leg = (a: [number, number, number], b: [number, number, number], r = 0.35) => {
+    const A = new THREE.Vector3(...a);
+    const B = new THREE.Vector3(...b);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+    return (
+      <mesh key={a.join() + b.join()} position={A.clone().add(B).multiplyScalar(0.5)} quaternion={q} material={SRED} castShadow>
+        <cylinderGeometry args={[r, r, A.distanceTo(B), 10]} />
+      </mesh>
+    );
+  };
+  return (
+    <group position={[x0, 0, z]}>
+      {/* the jib, lying west from the A-frame, tapering to its head */}
+      <Lat len={len} w0={3.4} w1={2.4} position={[0, y, 0]} rotation={[0, -Math.PI / 2, 0]} />
+      <RBox s={[3.2, 2.4, 2.6]} position={[-len - 1, y, 0]} />
+      {/* A-frame stand at the root: two posts, raking legs, top beam, base */}
+      {[-2.2, 2.2].map((dz) => (
+        <group key={dz}>
+          {leg([0, 0, dz], [0, 18, dz * 0.6], 0.4)}
+          {leg([7, 0, dz], [0, 18, dz * 0.6], 0.35)}
+          {leg([0, y - 1.7, dz], [7 * (1 - (y - 1.7) / 18), y - 1.7, dz], 0.25)}
+        </group>
+      ))}
+      <Box s={[2.4, 1.2, 5.2]} m={SRED} position={[0.6, 18.4, 0]} />
+      <Box s={[9, 0.6, 6]} m={SRED} position={[3.5, 0.3, 0]} />
+      {/* jib hook block parked on top, the red tension bars down to the jib root */}
+      <group position={[0.6, 21.2, 0]}>
+        <Box s={[1.6, 3.2, 2.2]} m={SRED} />
+        <Box s={[1.7, 0.4, 2.3]} m={M.black} position={[0, -1.0, 0]} />
+        <Cyl r={0.8} l={0.25} axis="z" m={M.steel} position={[0, 1.3, 0]} seg={18} />
+      </group>
+      {leg([0.1, 18.8, -0.8], [-0.2, y + 1.7, -1.2], 0.18)}
+      {leg([0.1, 18.8, 0.8], [-0.2, y + 1.7, 1.2], 0.18)}
+      {/* trestles under the jib */}
+      {[-16, -32].map((x) => (
+        <group key={x}>
+          {leg([x - 2, 0, -2], [x, y - 1.7, -1.4], 0.25)}
+          {leg([x + 2, 0, -2], [x, y - 1.7, -1.4], 0.25)}
+          {leg([x - 2, 0, 2], [x, y - 1.7, 1.4], 0.25)}
+          {leg([x + 2, 0, 2], [x, y - 1.7, 1.4], 0.25)}
+          <Box s={[1.2, 0.4, 3.4]} m={SRED} position={[x, y - 1.8, 0]} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function RBox({ s, position }: { s: [number, number, number]; position: [number, number, number] }) {
+  return <Box s={s} m={SRED} position={position} />;
+}
+
 /** Refinery plot for the SANY: SPMT transporters with saddles under the lying vessels, the lift-plan spot. */
 function Refinery() {
   const ring = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff6a00', transparent: true, opacity: 0.85, depthWrite: false }), []);
@@ -294,6 +356,7 @@ function Refinery() {
           </group>
         );
       })}
+      <JibStand />
       <group position={[SANY_SPOT.x, 0.05, SANY_SPOT.z]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} material={ring}>
           <ringGeometry args={[1.2, 1.5, 32]} />

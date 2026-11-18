@@ -172,7 +172,7 @@ const SANY: Spec = {
   fastNote: 'Dipercepat supaya bisa dimainkan: luffing 3×, swing 3×, jalan crawler 4×, hoist 8×. Makin banyak jalur tali, makin lambat hook.',
   swingRate: (0.45 * 2 * Math.PI) / 60, // 0.15 rpm real, 3× here
   swingAccel: 0.006,
-  lineSpeed: [8.0, 16.0],
+  lineSpeed: [12.0, 24.0], // ×1.5 the Zoomlion's: up to 65 parts of line
   linePull: 1000000, // N per part (est.: twin winches per boom)
   ropeLimit: 80000, // kg per part (est.: twin winches per boom)
   ropeTotal: 40000,
