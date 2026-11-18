@@ -181,10 +181,6 @@ describe('Zoomlion ZAT40000H763', () => {
     c.autoLevel = true;
     run(c, 40);
     c.swingLock = c.swingPark = false;
-    setFly(c, 111); // boom pointing north over the site: the strip is not clear
-    expect(c.flyTarget).toBe(0);
-    expect(c.msg).toContain('tidak bebas');
-    c.slew = Math.atan2(JIB_LAYDOWN.dx, JIB_LAYDOWN.dz) - c.heading;
     setFly(c, 111);
     expect(c.flyTarget).toBe(111);
     run(c, 21);
@@ -225,5 +221,33 @@ describe('Zoomlion ZAT40000H763', () => {
     run(c, 21);
     expect(c.fly).toBe(0);
     expect(c.failed).toBe('');
+  });
+
+  it('wind boom can be assembled anywhere and raised with the lever, even with the heaviest block, without tipping', () => {
+    for (const slew of [0, Math.PI / 2, Math.PI]) {
+      const c = create();
+      Object.assign(c, { x: 0, z: -200, heading: 0 }); // open field outside the site
+      startEngine(c);
+      run(c, 2);
+      c.beam = SPEC.outrigger.full.x;
+      c.beamSet = 'full';
+      c.autoLevel = true;
+      run(c, 40);
+      c.swingLock = c.swingPark = false;
+      c.hook.y = 0.5;
+      setBlock(c, 'b7', 41);
+      c.slew = slew;
+      c.angle = (12 * Math.PI) / 180; // a little up is fine
+      run(c, 0.5);
+      setFly(c, 111);
+      expect(c.flyTarget).toBe(111);
+      run(c, 21);
+      run(c, 120, (c) => {
+        c.luffLever = c.angle < 1.36 ? 1 : 0;
+        c.hand = 1;
+      });
+      expect(c.failed).toBe('');
+      expect(c.jibUp).toBe(1);
+    }
   });
 });

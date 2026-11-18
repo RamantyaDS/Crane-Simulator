@@ -311,17 +311,6 @@ export function jibElevation(c: Crane, len = c.fly) {
 /** The wind boom's tip is on the ground (part of its weight goes there, not into the crane). */
 const jibResting = (c: Crane) => c.fly > 0 && jibElevation(c) <= jibRest(c, c.fly) + 1e-6;
 
-/** First thing in the way of a fly laid out on the ground ahead of the head (null: the strip is clear). */
-export function laydownBlocked(c: Crane, len: number): string | null {
-  const z0 = SPEC.pin.z + (c.length + SPEC.headLen) * Math.cos(c.angle);
-  for (let d = 1; d <= len; d += 1.5) {
-    const p = upperToWorld(c, 0, 1, z0 + d);
-    for (const b of OBSTACLES) if (b.y0 < 2.5 && inside(b, p.x, p.z, 1.3)) return nameOf(b.id);
-    for (const L of c.loads) if (L.state !== 'air' && !(L.def.bolt && L.placed) && L.y < 2.5 && inside(loadBox(L, L.x, L.y, L.z), p.x, p.z, 1.3)) return L.def.name;
-  }
-  return null;
-}
-
 /** Load radius as the RCL reads it: swing centre to the hook line, horizontal. */
 export const radius = (c: Crane) => Math.max(0, tipUpper(c).z);
 
@@ -436,13 +425,12 @@ export function setFly(c: Crane, len: number) {
       return say(c, 'Boom wind diturunkan ke tanah…');
     }
   }
-  if (c.length > SPEC.boomMin + 0.2 || c.angle > (6 * Math.PI) / 180) return say(c, 'Pasang/lepas fly: boom ditarik penuh dan diturunkan dulu (di bawah 6°).');
+  const maxDeg = SPEC.model === 'zoomlion' ? 15 : 6;
+  if (c.length > SPEC.boomMin + 0.2 || c.angle > (maxDeg * Math.PI) / 180) return say(c, `Pasang/lepas ${FLY.label.toLowerCase()}: boom ditarik penuh dan rendah dulu (di bawah ${maxDeg}°).`);
   if (SPEC.model === 'zoomlion') {
     // the wind boom is laid out on the ground in line with the boom and pinned to its head: the crane stands on its
     // outriggers first and the strip ahead must be clear
     if (c.onTyres) return say(c, 'Berdirikan crane dulu (outrigger, counterweight): boom wind dirakit dengan crane sudah di atas outrigger.');
-    const block = len > c.fly ? laydownBlocked(c, len) : null;
-    if (block) return say(c, `Jalur rakit ${len} m di depan boom tidak bebas: ada ${block}. Swing boom ke jalur oranye "AREA RAKIT BOOM WIND" (barat daya, lewat gerbang pagar).`);
   }
   c.flyTarget = len;
   c.flyT = 0;
@@ -672,8 +660,10 @@ function craneHits(c: Crane): string | null {
 
 function boomPoints(c: Crane) {
   const out: { x: number; y: number; z: number }[] = [];
-  const t = tipUpper(c);
-  const n = Math.ceil((c.length + c.fly) / 1.5);
+  const skipFly = c.fly > 0 && c.jibUp < 1; // a wind boom lying on the ground / on its way up is not checked
+  const L = c.length + SPEC.headLen;
+  const t = skipFly ? { y: SPEC.pin.y + L * Math.sin(c.angle), z: SPEC.pin.z + L * Math.cos(c.angle) } : tipUpper(c);
+  const n = Math.ceil((c.length + (skipFly ? 0 : c.fly)) / 1.5);
   for (let i = 1; i <= n; i++) {
     const k = i / n;
     out.push(upperToWorld(c, 0, SPEC.pin.y + (t.y - SPEC.pin.y) * k, SPEC.pin.z + (t.z - SPEC.pin.z) * k));
@@ -733,7 +723,7 @@ function upper(c: Crane, dt: number) {
     if (c.jibDown) {
       if (steep && c.jibUp > 0) {
         c.jibUp = Math.max(0, c.jibUp - dt / 15);
-        if (c.jibUp === 0) say(c, 'Boom wind sudah rebah di tanah. Turunkan boom utama di bawah 6°, lalu pilih "Tanpa" lagi untuk membongkar.');
+        if (c.jibUp === 0) say(c, 'Boom wind sudah rebah di tanah. Turunkan boom utama di bawah 15°, lalu pilih "Tanpa" lagi untuk membongkar.');
       }
     } else if (steep && c.jibUp < 1 && c.attached < 0) {
       c.jibUp = Math.min(1, c.jibUp + dt / 15);
@@ -1172,12 +1162,14 @@ function masses(c: Crane) {
     const hy = SPEC.pin.y + L * Math.sin(c.angle);
     const hz = SPEC.pin.z + L * Math.cos(c.angle);
     up(bm * 1000 - flyKg, 0, SPEC.pin.y + (hy - SPEC.pin.y) * 0.42, SPEC.pin.z + (hz - SPEC.pin.z) * 0.42);
-    if (jibResting(c)) up(flyKg / 2, 0, hy, hz);
+    // tip on the ground, or being raised / let down on the superlift guying: half its weight at the head
+    if (jibResting(c) || c.jibUp < 1) up(flyKg / 2, 0, hy, hz);
     else up(flyKg, 0, (hy + t.y) / 2, (hz + t.z) / 2);
   } else up(bm * 1000, 0, SPEC.pin.y + (t.y - SPEC.pin.y) * 0.42, SPEC.pin.z + (t.z - SPEC.pin.z) * 0.42);
   // the hook load at the hanging mass (or under the head while it still rests)
   const [lx, lz] = toLocal(c.x, c.z, c.heading, c.hook.x, c.hook.z);
-  m.push({ kg: c.hookKg, x: lx, y: c.hook.y, z: lz });
+  // (the hook block rides on the wind boom's tip while it is raised: carried with it, by the superlift)
+  if (!(c.fly > 0 && c.jibUp < 1)) m.push({ kg: c.hookKg, x: lx, y: c.hook.y, z: lz });
   return m;
 }
 
