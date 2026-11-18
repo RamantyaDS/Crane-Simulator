@@ -90,7 +90,25 @@ function ratedZoomlion(q: ChartQuery): Rating {
 
 const fmtM = (m: number) => m.toString().replace('.', ',');
 
+/** SANY SCC45000A estimate: load moment over radius, capped by the boom; the superlift counterweight sets the moment
+ *  (SANY: 4 500 t double boom, 2 000 t single). Walking with a load: a third of it, superlift counterweight off the
+ *  ground. Estimates, not a published chart. */
+export function sanyKg(cw: number, radius: number, creep = false) {
+  const R = Math.max(radius, 12);
+  const twin = SPEC.twin;
+  const full = SPEC.counterweights[SPEC.counterweights.length - 1];
+  const M = (twin ? 110000 : 46000) * (0.35 + 0.65 * Math.min(1, cw / full)); // t·m
+  const cap = twin ? 4500 : 2000;
+  return Math.round((Math.min(cap, M / R) * 1000 * (creep ? 0.33 : 1)) / 1000) * 1000;
+}
+
+function ratedSany(q: ChartQuery): Rating {
+  const note = `${SPEC.twin ? 'Boom ganda' : 'Boom tunggal'} ${SPEC.boomMax} m · superlift ${Math.round(q.cw)} t · rumah ${SPEC.houseCw} t${q.creep ? ' · jalan membawa beban' : ''} (chart perkiraan)`;
+  return { kg: sanyKg(q.cw, q.radius, q.creep), note, estimated: true };
+}
+
 export function rated(q: ChartQuery): Rating {
+  if (SPEC.crawler) return ratedSany(q);
   if (SPEC.model === 'zoomlion') return ratedZoomlion(q);
   if (q.cw < 15) return { kg: 0, note: 'Tanpa counterweight: tidak ada chart. Pasang counterweight dulu.' };
   const key = q.cw > 20 ? '26.7' : '15.9';
@@ -134,6 +152,11 @@ export function rated(q: ChartQuery): Rating {
 
 /** The full chart for the panel's table: rows of radius with the ratings per pinned length. */
 export function chartTable(cw: number) {
+  if (SPEC.crawler) {
+    const radii = [12, 15, 18, 22, 26, 30, 35, 40, 46, 52, 60, 70, 80];
+    const rows: Row[] = radii.map((r) => [r, [sanyKg(cw, r)]]);
+    return { lengths: SPEC.stops, rows, front: [] as Row[] };
+  }
   if (SPEC.model === 'zoomlion') {
     const radii = [3, 5, 8, 10, 12, 15, 18, 22, 26, 30, 35, 40, 46, 52, 60, 70, 80, 90];
     const rows: Row[] = radii.map((r) => [r, SPEC.stops.map((L) => (r < L * 0.08 || r > L * 0.97 - 2 ? null : zoomlionKg(cw, L, r, 0)))]);

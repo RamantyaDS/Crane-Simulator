@@ -14,6 +14,7 @@ const CAM_LABEL: Record<CamMode, string> = { orbit: 'Orbit', cab: 'Kabin', hook:
 const fmt = (n: number, d = 1) => n.toFixed(d).replace('.', ',');
 const t = (kg: number) => `${fmt(kg / 1000)} t`;
 const ZL = SPEC.model === 'zoomlion';
+const SANY = SPEC.crawler;
 
 /** Crane choice: the page reloads with the other model (the run restarts). */
 function ModelPicker() {
@@ -155,6 +156,13 @@ function SetupPanel() {
   const blk = BLOCKS.find((b) => b.id === cr.block)!;
   return (
     <>
+      {SANY ? (
+        <>
+          <h3>Crawler</h3>
+          <p className="dim">Crawler berdiri di atas track ({fmt(SPEC.track + SPEC.tyreW, 0)} × {fmt(SPEC.carrierLen, 0)} m): tidak ada outrigger. Jalan: W/S gas/rem, Q/E maju/mundur, A/D belok di tempat. Boleh berjalan membawa beban (kapasitas sepertiga).</p>
+        </>
+      ) : (
+        <>
       <h3>Outrigger</h3>
       <div className="row">
         {(
@@ -184,7 +192,9 @@ function SetupPanel() {
         <input type="checkbox" checked={cr.mats} disabled={cr.jacks.some((j) => j > 0.3)} onChange={(e) => (cr.mats = e.target.checked)} />
         <span>Matras di bawah pontoon (1,5 × 1,5 m)</span>
       </label>
-      <h3>Counterweight</h3>
+        </>
+      )}
+      <h3>{SANY ? 'Counterweight superlift (tray)' : 'Counterweight'}</h3>
       <div className="row">
         {SPEC.counterweights.map((w) => (
           <button key={w} className={cr.cwTarget === w ? 'on' : ''} onClick={() => setCounterweight(cr, w)}>
@@ -202,15 +212,15 @@ function SetupPanel() {
           Rem parkir swing {cr.swingPark ? 'ON' : 'off'}
         </button>
       </div>
-      <h3>{FLY.label}</h3>
-      <div className="row">
+      {FLY.lengths.length > 1 && <h3>{FLY.label}</h3>}
+      <div className="row" hidden={FLY.lengths.length <= 1}>
         {FLY.lengths.map((l) => (
           <button key={l} className={cr.flyTarget === l ? 'on' : ''} onClick={() => setFly(cr, l)}>
             {l === 0 ? (ZL ? 'Tanpa' : 'Disimpan') : `${fmt(l, 0)} m`}
           </button>
         ))}
       </div>
-      <div className="row">
+      <div className="row" hidden={FLY.lengths.length <= 1}>
         {FLY.offsets.map((o) => (
           <button key={o} className={cr.flyOffset === o ? 'on' : ''} disabled={cr.fly === 0} onClick={() => (cr.angle < 0.2 ? (cr.flyOffset = o) : (cr.msg = 'Offset fly diubah dengan boom diturunkan (di bawah 11°).'))}>
             {o}°
@@ -276,7 +286,7 @@ function LoadPanel() {
       <h3>Rigging</h3>
       {cr.attached < 0 ? (
         <div className="rigs">
-          {RIGGING.filter((r) => ZL || r.id !== 'yoke').map((r) => {
+          {RIGGING.filter((r) => (ZL || r.id !== 'yoke') && (SANY || !r.id.startsWith('lbeam'))).map((r) => {
             const p = plan(L.def, r);
             return (
               <button key={r.id} className={p.ok ? '' : 'bad'} onClick={() => attachRig(cr, r.id)} title={p.ok ? '' : p.problem}>
@@ -387,7 +397,7 @@ function Rcl() {
   return (
     <section className="rcl" aria-label="RCL">
       <header>
-        <b>{ZL ? 'RCL · chart perkiraan' : 'RCL · Link-Belt Pulse'}</b>
+        <b>{ZL || SANY ? 'RCL · chart perkiraan' : 'RCL · Link-Belt Pulse'}</b>
         <span className={cr.engine === 'running' ? 'ok' : ''}>{cr.engine === 'running' ? `${Math.round(cr.rpm)} rpm` : 'mesin mati'}</span>
       </header>
       <div className="big">
@@ -464,6 +474,12 @@ function hint() {
     const b = bladeHint(L);
     if (b) return b;
   }
+  if (L.def.upend && !L.placed) {
+    const up = L.up ?? 1;
+    if (cr.attached < 0 && up < 1) return 'Jalankan crawler ke lingkaran LIFT PLAN, swing di atas trunnion atas bejana yang rebah, turunkan hook, pasang lifting beam (tab Beban).';
+    if (cr.attached >= 0 && up < 1) return `Upending ${Math.round(up * 90)}°: hoist naik pelan (R). Kaki bejana dibawa tailing trolley mendekat. Jaga hook tegak di atas trunnion.`;
+    if (L.state === 'rest' && cr.attached >= 0) return 'Bejana sudah tegak di tailing trolley: hoist naik sampai terangkat penuh, lalu swing ke pondasi.';
+  }
   if (L.placed) return 'Beban terpasang. Lepas rigging, lalu pilih beban berikutnya.';
   if (cr.onTyres && cr.attached < 0 && cr.angle < 0.05 && useUI.getState().mode === 'drive' && Math.abs(cr.v) < 0.1 && cr.time > 20)
     return 'Boom bisa dinaikkan kapan saja: Tab → mode crane, tahan W. Tapi angkat beban hanya di atas outrigger (tab Setup).';
@@ -522,7 +538,9 @@ function ChartView() {
       <button className="x" onClick={() => ui.set({ chart: false })} aria-label="Tutup">
         ×
       </button>
-      {ZL ? (
+      {SANY ? (
+        <h3>Chart PERKIRAAN SCC45000A · {SPEC.twin ? 'boom ganda' : 'boom tunggal'} {SPEC.boomMax} m · superlift {fmt(cr.cw, 0)} t (kg) · bukan chart resmi</h3>
+      ) : ZL ? (
         <h3>Chart PERKIRAAN ZAT40000H763 · boom utama · CW {fmt(cr.cw, 0)} t · superlift · outrigger 16 × 16 m (kg) · dari momen beban 8 000 t·m, bukan chart resmi</h3>
       ) : (
         <h3>Load chart RTC-80160 II · CW {fmt(cr.cw > 20 ? 26.7 : 15.9)} t · outrigger penuh 360° · 85% (kg)</h3>
@@ -554,7 +572,9 @@ function ChartView() {
         </table>
       </div>
       <p className="credit">
-        {ZL
+        {SANY
+          ? 'Perkiraan: SANY menyebut 4 500 t (boom ganda) dan 2 000 t (boom tunggal); di sini kapasitas = momen beban perkiraan dibagi radius, naik dengan counterweight superlift, dibatasi 80% beban guling. Bukan chart resmi.'
+          : ZL
           ? 'Perkiraan: momen beban maksimum Zoomlion (8 000 t·m boom dasar, 6 300 t·m boom panjang + boom wind) dibagi radius, dibatasi kekuatan boom; RCL juga membatasi 80% beban guling. Bukan chart resmi.'
           : 'Sumber: Link-Belt Technical Data 5825 (RTC-80160 Series II), tabel 85% metrik. Radius di antara baris memakai baris yang lebih besar.'}
       </p>
@@ -709,7 +729,7 @@ export function App() {
         <div>
           <h1>{SPEC.name}</h1>
           <p>
-            Simulator {ZL ? 'all-terrain crane 4 000 t' : 'rough terrain crane 145 t'} · proyek pabrik · {mode === 'drive' ? 'mode jalan' : 'mode crane'}
+            Simulator {SANY ? `crawler crane ${SPEC.twin ? '4 500' : '2 000'} t` : ZL ? 'all-terrain crane 4 000 t' : 'rough terrain crane 145 t'} · {SANY ? 'proyek kilang' : 'proyek pabrik'} · {mode === 'drive' ? 'mode jalan' : 'mode crane'}
           </p>
         </div>
       </header>
@@ -726,7 +746,13 @@ export function App() {
           <div>
             <h1>Simulator Crane Traknus</h1>
             <ModelPicker />
-            {ZL ? (
+            {SANY ? (
+              <p>
+                Crawler crane SANY SCC45000A: {SPEC.twin ? 'dua boom lattice berdampingan 96 m + equalizer, 4 500 t' : 'satu boom lattice 96 m, 2 000 t'}, superlift dengan tray counterweight sampai{' '}
+                {fmt(SPEC.counterweights[SPEC.counterweights.length - 1], 0)} t. Misi di plot kilang selatan pagar: upending reaktor hydrocracker 3 000 t (boom ganda) dan kolom distilasi 1 500 t dari SPMT, lalu set di pondasi.
+                SANY tidak menerbitkan load chart: kapasitas di sini PERKIRAAN.
+              </p>
+            ) : ZL ? (
               <p>
                 All-terrain crane 4 000 ton, 10 gandar, boom utama 7 seksi 19,8–95,4 m, superlift Y, boom wind 51–111 m (tinggi hook sampai ±206 m). Beban terbesar: nacelle
                 turbin angin 150 t ke puncak menara 148,5 m. Zoomlion tidak menerbitkan load chart: kapasitas di sini PERKIRAAN dari momen beban yang dipublikasikan.

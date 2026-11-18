@@ -3,7 +3,7 @@
 // a 20 kV overhead line along the east edge. The loads wait in the laydown yard; each has a marked destination.
 // World axes: x east, z north, y up, metres.
 import { inside, type Obb } from './geom';
-import type { ModelId } from './spec';
+import { SPEC, type ModelId } from './spec';
 
 export type Ground = 'gravel' | 'concrete';
 /** Allowable ground bearing pressure (kPa) of each surface. */
@@ -91,11 +91,15 @@ export interface LoadDef {
   start: { x: number; z: number; yaw: number; y: number };
   dest: { x: number; z: number; yaw: number; y: number; label: string };
   note: string;
-  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo' | 'nacelle' | 'blade';
-  only?: ModelId; // a load for one crane only
+  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo' | 'nacelle' | 'blade' | 'reactor' | 'column';
+  only?: ModelId; // a load for one crane only ('sany' = both SANY configurations)
   mount?: boolean; // set on a yaw bearing: any heading, resting on its centre
   bolt?: boolean; // a rotor blade: bolted to the hub in the air, never set down there
+  upend?: boolean; // a vessel delivered lying (size/points/cg given standing): upended by the crane with a tailing trolley
 }
+
+/** Is this load part of the selected crane's job? */
+export const forModel = (d: LoadDef) => (SPEC.crawler ? d.only === 'sany' : !d.only || d.only === SPEC.model);
 
 export const FOUNDATIONS: { id: string; b: Obb; y: number }[] = [];
 function dest(id: string, x: number, z: number, yaw: number, y: number, sx: number, sz: number, label: string, raised = 0) {
@@ -249,6 +253,45 @@ export const LOADS: LoadDef[] = [
     mount: true,
   },
   ...[0, 1, 2].map(blade),
+  {
+    id: 'reactor',
+    name: 'Reaktor hydrocracker 3 000 t (BEBAN MAKSIMAL)',
+    kg: 3000000,
+    size: [6.4, 42, 6.4], // standing: diameter × height × diameter
+    cg: [0, 17, 0],
+    points: [
+      [-3.5, 39, 0],
+      [3.5, 39, 0],
+    ],
+    pairs: [[0, 1]],
+    // lying on the SPMT, top towards the crane's lift spot: foot (base centre on the axis) east
+    start: { x: 64, z: -110, yaw: -Math.PI / 2, y: 6.0 },
+    dest: dest('reactor', 0, -84, 0, 1.4, 9, 9, 'Pondasi reaktor R-101', 1.4),
+    note: 'Reaktor 3 000 t datang rebah di atas SPMT. Pasang lifting beam di trunnion atas, hoist pelan: reaktor berdiri (upending) sementara kakinya ditahan tailing trolley yang bergeser mendekat. Setelah tegak, angkat penuh, swing ke pondasi. Hanya boom ganda yang kuat.',
+    look: 'reactor',
+    only: 'sany',
+    mount: true,
+    upend: true,
+  },
+  {
+    id: 'column',
+    name: 'Kolom distilasi 1 500 t',
+    kg: 1500000,
+    size: [5.2, 52, 5.2],
+    cg: [0, 22, 0],
+    points: [
+      [-2.9, 49, 0],
+      [2.9, 49, 0],
+    ],
+    pairs: [[0, 1]],
+    start: { x: 66, z: -124, yaw: -Math.PI / 2, y: 5.4 },
+    dest: dest('column', 22, -86, 0, 1.2, 8, 8, 'Pondasi kolom C-201', 1.2),
+    note: 'Kolom 52 m, 1 500 t, rebah di SPMT. Upending dengan lifting beam 6 m, lalu set di pondasi. Bisa dengan boom tunggal (2 000 t) di radius pendek.',
+    look: 'column',
+    only: 'sany',
+    mount: true,
+    upend: true,
+  },
 ];
 
 /** Rotor blades on their stands west of the crane, root to the south: lifted level one at a time with a blade yoke and
@@ -286,6 +329,10 @@ export const START = { x: -30, z: -50, heading: Math.PI / 2 };
  *  the ground in line with the boom (from the boom head of the retracted boom). */
 export const JIB_LAYDOWN = { x: -30, z: -20, dx: -0.8, dz: -0.6, from: 17, len: 116, w: 6 };
 export const START_ZL = { x: -30, z: -49, heading: 0 };
+/** SANY: the refinery plot outside the south fence; the crawler walks in to the lift spot between the vessels and the
+ *  foundations. */
+export const START_SANY = { x: 0, z: -160, heading: 0 };
+export const SANY_SPOT = { x: 0, z: -112, heading: 0 };
 
 // ---------- rigging ----------
 export interface RigItem {
@@ -312,5 +359,7 @@ export const RIGGING: RigItem[] = [
   { id: 'sp3h', name: 'Spreader berat 3 m (150 t) + sling 4 m', kind: 'spreader', legLen: 4, wll: 60000, span: 3, spreaderWll: 150000, kg: 2200 },
   { id: 'sp4h', name: 'Spreader berat 4 m (150 t) + sling 4,5 m', kind: 'spreader', legLen: 4.5, wll: 63000, span: 4, spreaderWll: 150000, kg: 2350 },
   { id: 'sp9h', name: 'Spreader nacelle 9 m (200 t) + sling 8 m', kind: 'spreader', legLen: 8, wll: 100000, span: 9, spreaderWll: 200000, kg: 6500 },
+  { id: 'lbeam7', name: 'Lifting beam trunnion 7 m (5 000 t) + sling 10 m', kind: 'spreader', legLen: 10, wll: 2600000, span: 7, spreaderWll: 5000000, kg: 120000 },
+  { id: 'lbeam6', name: 'Lifting beam trunnion 5,8 m (2 000 t) + sling 9 m', kind: 'spreader', legLen: 9, wll: 1100000, span: 5.8, spreaderWll: 2000000, kg: 70000 },
   { id: 'yoke', name: 'Blade yoke (penjepit bilah) 40 t + sling 4 m', kind: 'spreader', legLen: 4, wll: 25000, span: 4, spreaderWll: 40000, kg: 9000 },
 ];

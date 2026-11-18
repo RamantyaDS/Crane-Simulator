@@ -13,9 +13,10 @@ import { CraneModel, craneObj } from './Crane';
 import { Fx } from './Fx';
 import { Loads } from './Loads';
 import { Site } from './Site';
+import { SanyModel } from './Sany';
 import { ZoomlionModel } from './Zoomlion';
 
-const BIG = SPEC.model === 'zoomlion'; // the 4 000 t crane works up to 200 m: wider camera, shadow and fog ranges
+const BIG = SPEC.bigView; // the 4 000 t cranes work up to 200 m: wider camera, shadow and fog ranges
 
 /** Camera look offsets, changed by mouse drags, the wheel and the gamepad's D-pad. */
 const look = { yaw: 0.6, pitch: 0.42, dist: BIG ? 75 : 32, cabYaw: 0, cabPitch: -0.05 };
@@ -199,7 +200,7 @@ export function Experience() {
       </Environment>
       <Site />
       <Loads />
-      {BIG ? <ZoomlionModel /> : <CraneModel />}
+      {SPEC.crawler ? <SanyModel /> : BIG ? <ZoomlionModel /> : <CraneModel />}
       <RadiusRing />
       <Fx />
       <CameraRig />

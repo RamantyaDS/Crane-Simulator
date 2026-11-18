@@ -380,7 +380,59 @@ function Hub() {
   );
 }
 
+/** Pressure vessel standing on its skirt: shell, heads, trunnions near the top, platform rings, nozzles. */
+function Vessel({ d }: { d: LoadDef }) {
+  const [dia, h] = d.size;
+  const r = dia / 2;
+  const shell = d.look === 'reactor' ? C.tank : M.white;
+  const top = d.points[0][1];
+  return (
+    <group>
+      <Cyl r={r * 0.92} l={2.5} m={C.steel} position={[0, 1.25, 0]} seg={28} />
+      <Cyl r={r} l={h - 2.5 - r * 0.6} m={shell} position={[0, 2.5 + (h - 2.5 - r * 0.6) / 2, 0]} seg={32} />
+      <mesh position={[0, h - r * 0.6, 0]} scale={[1, 0.6, 1]} material={shell} castShadow>
+        <sphereGeometry args={[r, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2]} />
+      </mesh>
+      {/* trunnions for the lifting beam */}
+      {[-1, 1].map((k) => (
+        <Cyl key={k} r={0.5} l={0.9} axis="x" m={C.steel} position={[k * (r + 0.4), top, 0]} seg={16} />
+      ))}
+      {/* platform rings and the ladder */}
+      {[0.3, 0.55, 0.8].map((k) => (
+        <Cyl key={k} r={r + 0.9} l={0.15} m={M.hookYellow} position={[0, h * k, 0]} seg={32} open />
+      ))}
+      <Box s={[0.5, h * 0.75, 0.1]} m={M.hookYellow} position={[0, 2.5 + h * 0.375, r + 0.5]} />
+      {[0.2, 0.45, 0.7].map((k) => (
+        <Cyl key={k} r={0.45} l={1.2} axis="z" m={C.steel} position={[r * 0.4, h * k, -r - 0.4]} seg={12} />
+      ))}
+      <Text position={[0, h * 0.62, r + 0.05]} fontSize={1.6} color="#1f3550" fontWeight={700}>
+        {d.look === 'reactor' ? 'R-101' : 'C-201'}
+      </Text>
+    </group>
+  );
+}
+
+/** The trolley that carries the vessel's foot in towards the crane while it is upended. */
+function Tailing({ L }: { L: LoadState }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const g = ref.current!;
+    const up = L.up ?? 1;
+    g.visible = up > 0.002 && !L.placed && L.state !== 'air' && !(up === 1 && L.state === 'rest' && cr.attached < 0);
+    g.position.set(L.x, 0, L.z);
+    g.rotation.y = L.yaw;
+  });
+  return (
+    <group ref={ref}>
+      <Box s={[7, 1.0, 6]} m={M.hookYellow} position={[0, 0.5, 0]} />
+      <Box s={[L.def.size[0] + 1, 0.6, 1.2]} m={C.steel} position={[0, 1.2, 0]} />
+      {[-2.4, 2.4].map((x) => [-2, 0, 2].map((z) => <Cyl key={`${x}${z}`} r={0.4} l={0.4} axis="x" m={M.rubber} position={[x, 0.3, z]} seg={10} />))}
+    </group>
+  );
+}
+
 function LoadMesh({ d }: { d: LoadDef }) {
+  if (d.upend) return <Vessel d={d} />;
   if (d.look === 'blade') return <Blade d={d} />;
   if (d.look === 'nacelle') return <Nacelle d={d} />;
   if (d.look === 'genset') return <Genset />;
@@ -415,6 +467,11 @@ function OneLoad({ L }: { L: LoadState }) {
     root.current!.position.set(0, 0, 0);
     root.current!.rotation.y = 0;
     g.position.set(L.x, L.y, L.z);
+    if (L.def.upend && (L.up ?? 1) < 1) {
+      // lying / being upended about its foot: the axis tips from +z (towards the top) up to +y
+      g.rotation.copy(e.set(((1 - (L.up ?? 1)) * Math.PI) / 2, L.yaw, 0, 'YXZ'));
+      return;
+    }
     if (L.state === 'fallen') g.rotation.copy(e.set(0.3, L.yaw, 0.5, 'YXZ'));
     else g.rotation.copy(e.set(L.state === 'air' ? L.tilt : 0, L.yaw, 0, 'YXZ'));
   });
@@ -429,6 +486,15 @@ function OneLoad({ L }: { L: LoadState }) {
       </group>
       {L.def.look === 'nacelle' && <Hub />}
     </group>
+  );
+}
+
+function OneLoadWithTail({ L }: { L: LoadState }) {
+  return (
+    <>
+      <OneLoad L={L} />
+      {L.def.upend && <Tailing L={L} />}
+    </>
   );
 }
 
@@ -707,7 +773,7 @@ export function Loads() {
   return (
     <group>
       {cr.loads.map((L) => (
-        <OneLoad key={L.def.id} L={L} />
+        <OneLoadWithTail key={L.def.id} L={L} />
       ))}
       <Destination />
       <Rigging />

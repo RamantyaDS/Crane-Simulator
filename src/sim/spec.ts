@@ -14,7 +14,12 @@
 // 120 m/min, boom raising 360 s, telescoping 30 min, maximum load moment 8 000 t·m (basic boom) and 6 300 t·m (long main
 // boom + long wind boom). No public load chart: its ratings are estimated (see chart.ts). Values marked est. are not
 // published (counterweight, masses, dimensions of the upper).
-export type ModelId = 'linkbelt' | 'zoomlion';
+//
+// SANY SCC45000A, crawler crane, 4 500 t with the double (twin) boom and 2 000 t with a single boom (SANY: "max.
+// capacity of double boom working condition is 4500t and the single is 2000t"). Two lattice booms side by side joined
+// at the head, a superlift mast and a counterweight tray behind, an equalizer joining two hook blocks. No public load
+// chart: ratings, dimensions, masses and speeds here are estimates from the photos and the class of crane.
+export type ModelId = 'linkbelt' | 'zoomlion' | 'sany' | 'sany1';
 
 const LINKBELT = {
   model: 'linkbelt' as ModelId,
@@ -73,6 +78,12 @@ const LINKBELT = {
   lowSpeed: 8 / 3.6,
   maxSteer: 0.6, // rad
   fuelL: 568, // est.
+  crawler: false, // crawler crane: tracks instead of tyres and outriggers
+  twin: false, // two booms side by side
+  houseCw: 0, // t, counterweight on the upper itself (crawler cranes)
+  houseArm: 0,
+  startAngle: 0, // boom angle at the start (a crawler starts erected)
+  bigView: false, // camera and shadow ranges for a 100 m+ crane
 };
 
 export type Spec = typeof LINKBELT;
@@ -128,6 +139,83 @@ const ZOOMLION: Spec = {
   lowSpeed: 12 / 3.6,
   maxSteer: 0.5,
   fuelL: 1200, // est.
+  crawler: false,
+  twin: false,
+  houseCw: 0,
+  houseArm: 0,
+  startAngle: 0,
+  bigView: true,
+};
+
+const SANY: Spec = {
+  ...ZOOMLION,
+  model: 'sany',
+  name: 'SANY SCC45000A',
+  width: 18.0, // over both crawlers (est.)
+  wheelbase: 0,
+  axles: [],
+  steerAxles: 0,
+  tyreR: 0.9,
+  tyreW: 3.0, // track shoe width (est.)
+  track: 15.0, // crawler centre to centre (est.)
+  carrierLen: 19.0, // crawler length (est.)
+  deckY: 4.2, // top of the carbody, slewing ring (est.)
+  pin: { z: 2.6, y: 7.0 }, // boom foot pins (est.)
+  headLen: 3.0,
+  boomMin: 96,
+  boomMax: 96,
+  stops: [96], // lattice boom: its length is set when it is assembled
+  angleMin: (35 * Math.PI) / 180,
+  angleMax: (85 * Math.PI) / 180,
+  luffRate: ((3 * 50) / 900 * Math.PI) / 180, // 35 → 85° in about 15 min on the real crane: 3× faster here
+  teleRate: 0,
+  fastNote: 'Dipercepat supaya bisa dimainkan: luffing 3×, swing 3×, jalan crawler 4×, hoist 8×. Makin banyak jalur tali, makin lambat hook.',
+  swingRate: (0.45 * 2 * Math.PI) / 60, // 0.15 rpm real, 3× here
+  swingAccel: 0.006,
+  lineSpeed: [8.0, 16.0],
+  linePull: 1000000, // N per part (est.: twin winches per boom)
+  ropeLimit: 80000, // kg per part (est.: twin winches per boom)
+  ropeTotal: 40000,
+  outrigger: {
+    // the crawlers: support corners at the ends of the two tracks (no beams, no jacks)
+    full: { x: 7.5, z: 8.2 },
+    mid: { x: 7.5, z: 8.2 },
+    retracted: { x: 7.5, z: 8.2 },
+    pad: 5.8, // equivalent diameter of a quarter of the track contact (3 × 8.8 m)
+    stroke: 0,
+    jackRate: 0,
+  },
+  counterweights: [0, 1500, 3000], // t of superlift counterweight on the tray (est.)
+  mass: { carrier: 1100, upper: 450, boomBase: 520, boomPerM: 0, fly: [0] }, // est. (twin boom)
+  cwArm: -34, // superlift tray radius (est.)
+  superlift: true,
+  flyBall: false,
+  cwBox: { x: 7.5, z: 5.0, y0: 0.4, y1: 7.0 }, // superlift tray, close to the ground
+  deflRef: 96,
+  deflK: 0.04,
+  cabEye: [6.2, 7.2, 4.0],
+  idleRpm: 700,
+  maxRpm: 1900,
+  topSpeed: 2.0 / 3.6, // crawler travel, 4× the real 0.5 km/h
+  lowSpeed: 1.0 / 3.6,
+  maxSteer: 1,
+  fuelL: 3000,
+  crawler: true,
+  twin: true,
+  houseCw: 1200,
+  houseArm: -13,
+  startAngle: (75 * Math.PI) / 180,
+  bigView: true,
+};
+const SANY1: Spec = {
+  ...SANY,
+  model: 'sany1',
+  name: 'SANY SCC45000A (boom tunggal)',
+  twin: false,
+  counterweights: [0, 800, 1600],
+  mass: { carrier: 1100, upper: 450, boomBase: 280, boomPerM: 0, fly: [0] },
+  houseCw: 800,
+  ropeLimit: 70000,
 };
 
 export const SPEC: Spec = structuredClone(LINKBELT);
@@ -158,6 +246,11 @@ const ZL_BLOCKS: Block[] = [
   { id: 'b6', name: 'Hook block ganda 2 500 t', rating: 2500000, sheaves: 25, mass: 34000 },
   { id: 'b7', name: 'Hook block ganda 4 000 t', rating: 4000000, sheaves: 40, mass: 52000 },
 ];
+const SANY_BLOCKS: Block[] = [
+  { id: 'b800', name: 'Hook block 800 t', rating: 800000, sheaves: 8, mass: 18000 },
+  { id: 'b2000', name: 'Hook block 2 000 t', rating: 2000000, sheaves: 16, mass: 55000 },
+  { id: 'eq4500', name: 'Equalizer + 2 hook block 4 500 t (boom ganda)', rating: 4500000, sheaves: 32, mass: 160000 },
+];
 export const BLOCKS: Block[] = [...LB_BLOCKS];
 export type BlockId = string;
 /** Most parts of line a block can take (head has enough sheaves): 2 per sheave, +1 with the dead end on the block. */
@@ -166,11 +259,14 @@ export const maxParts = (sheaves: number) => (sheaves === 0 ? 1 : sheaves * 2 + 
 export const MODELS: { id: ModelId; name: string; note: string }[] = [
   { id: 'linkbelt', name: 'Link-Belt RTC-80160 II · 145 t', note: 'Rough terrain 6x6 · load chart resmi Link-Belt' },
   { id: 'zoomlion', name: 'Zoomlion ZAT40000H763 · 4 000 t', note: 'All-terrain 10 gandar · superlift · boom wind · chart perkiraan' },
+  { id: 'sany', name: 'SANY SCC45000A · boom ganda 4 500 t', note: 'Crawler · dua boom lattice + equalizer · superlift · chart perkiraan' },
+  { id: 'sany1', name: 'SANY SCC45000A · boom tunggal 2 000 t', note: 'Crawler · satu boom lattice · superlift · chart perkiraan' },
 ];
 
 const START_MODEL: ModelId = (() => {
   try {
-    return localStorage.getItem('crane-model') === 'zoomlion' ? 'zoomlion' : 'linkbelt';
+    const m = localStorage.getItem('crane-model');
+    return m === 'zoomlion' || m === 'sany' || m === 'sany1' ? m : 'linkbelt';
   } catch {
     return 'linkbelt';
   }
@@ -178,11 +274,13 @@ const START_MODEL: ModelId = (() => {
 
 /** Switch every model table to the chosen crane. */
 export function setModel(id: ModelId) {
-  const s = id === 'zoomlion' ? ZOOMLION : LINKBELT;
+  const s = { linkbelt: LINKBELT, zoomlion: ZOOMLION, sany: SANY, sany1: SANY1 }[id];
   Object.assign(SPEC, structuredClone(s));
   if (id === 'zoomlion') Object.assign(FLY, { lengths: [0, 51, 81, 111], offsets: [0, 5, 10, 15], label: 'Boom wind' });
+  else if (s.crawler) Object.assign(FLY, { lengths: [0], offsets: [0], label: 'Jib' });
   else Object.assign(FLY, { lengths: [0, 9.4, 16.8], offsets: [2, 15, 30, 45], label: 'Fly jib' });
-  BLOCKS.splice(0, BLOCKS.length, ...(id === 'zoomlion' ? ZL_BLOCKS : LB_BLOCKS));
+  const blocks = id === 'zoomlion' ? ZL_BLOCKS : id === 'sany' ? SANY_BLOCKS : id === 'sany1' ? SANY_BLOCKS.slice(0, 2) : LB_BLOCKS;
+  BLOCKS.splice(0, BLOCKS.length, ...blocks);
 }
 
 // Full-load torque (Nm) of the Cummins QSL 8.9: 1424 at 1500, 257 kW (1227 Nm) at 2000. The Zoomlion's engines are not

@@ -13,7 +13,7 @@
 import { rated, stopIndex, type Rating, type Support } from './chart';
 import { clamp, inside, overlaps, toLocal, toWorld, type Obb } from './geom';
 import { plan, type RigPlan } from './rigging';
-import { BEARING, LOADS, MIN_APPROACH, OBSTACLES, POWERLINE, RIGGING, START, START_ZL, groundAt, inExcavation, surfaceAt, type LoadDef } from './site';
+import { BEARING, LOADS, MIN_APPROACH, OBSTACLES, POWERLINE, RIGGING, START, START_SANY, START_ZL, forModel, groundAt, inExcavation, surfaceAt, type LoadDef } from './site';
 import { BLOCKS, FLY, SPEC, maxParts, maxTorque, type BlockId } from './spec';
 
 const G = 9.81;
@@ -33,6 +33,7 @@ export interface LoadState {
   placed: boolean; // set down at its destination
   damage: number;
   slot?: number; // a rotor blade: which hub flange it was bolted to
+  up?: number; // a vessel being upended: 0 lying, 1 standing
 }
 
 export interface Crane {
@@ -143,12 +144,12 @@ export interface Crane {
 }
 
 export function createLoads(): LoadState[] {
-  return LOADS.filter((d) => !d.only || d.only === SPEC.model).map((def) => ({ def, x: def.start.x, y: def.start.y, z: def.start.z, yaw: def.start.yaw, tilt: 0, state: 'rest', placed: false, damage: 0 }));
+  return LOADS.filter(forModel).map((def) => ({ def, x: def.start.x, y: def.start.y, z: def.start.z, yaw: def.start.yaw, tilt: 0, state: 'rest', placed: false, damage: 0, up: def.upend ? 0 : 1 }));
 }
 
 export function create(): Crane {
-  const zl = SPEC.model === 'zoomlion';
-  const st = zl ? START_ZL : START;
+  const zl = SPEC.model === 'zoomlion' || SPEC.crawler;
+  const st = SPEC.crawler ? START_SANY : zl ? START_ZL : START;
   const c: Crane = {
     x: st.x,
     z: st.z,
@@ -205,8 +206,8 @@ export function create(): Crane {
     hoistLever: 0,
     tagLever: 0,
     highSpeed: false,
-    block: zl ? 'b5' : 'b4',
-    parts: zl ? 8 : 4,
+    block: SPEC.crawler ? BLOCKS[BLOCKS.length - 1].id : zl ? 'b5' : 'b4',
+    parts: SPEC.crawler ? (SPEC.twin ? 49 : 25) : zl ? 8 : 4,
     drum: 0,
     hook: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 },
     ropeLen: 2,
@@ -244,6 +245,11 @@ export function create(): Crane {
     rotorV: 0,
     turbine: false,
   };
+  if (SPEC.crawler) {
+    // the job: the vessels; a crawler stands on its tracks, boom erected
+    c.target = Math.max(0, c.loads.findIndex((l) => l.def.upend));
+    Object.assign(c, { onTyres: false, beamSet: 'full', beam: SPEC.outrigger.full.x, angle: SPEC.startAngle, length: SPEC.boomMax, swingLock: false });
+  }
   // hook stowed: hanging a little below the boom head
   c.drum = ropeAlong(c) + 2.2 * c.parts;
   const tip = tipWorld(c);
@@ -477,6 +483,7 @@ export function detachRig(c: Crane) {
 
 /** Top of the rigging (where it meets the hook) for a resting load, world. */
 function liftPoint(L: LoadState, p: RigPlan) {
+  if (L.def.upend && (L.up ?? 1) < 1) return vesselTop(L, p.centre[1]);
   const [cx, cy, cz] = p.centre;
   const [wx, wz] = toWorld(L.x, L.z, L.yaw, cx, cz);
   return { x: wx, y: L.y + cy, z: wz };
@@ -529,6 +536,15 @@ function engine(c: Crane, dt: number) {
 const flow = (c: Crane) => (c.engine === 'running' ? clamp(0.3 + (0.7 * (c.rpm - SPEC.idleRpm)) / (SPEC.maxRpm - SPEC.idleRpm), 0.3, 1) : 0);
 
 function outriggers(c: Crane, dt: number) {
+  if (SPEC.crawler) {
+    // on its crawlers: always standing, level on the compacted ground
+    c.onTyres = false;
+    c.lift = 0;
+    c.pitch = 0;
+    c.roll = 0;
+    c.beam = SPEC.outrigger.full.x;
+    return;
+  }
   const on = c.engine === 'running';
   // beams run in and out with the jacks up
   const want = SPEC.outrigger[c.beamSet].x;
@@ -585,27 +601,32 @@ function drive(c: Crane, dt: number) {
   // steering (hydraulic)
   const want = c.steerInput * SPEC.maxSteer;
   c.steer += Math.sign(want - c.steer) * Math.min(Math.abs(want - c.steer), (running ? 0.5 : 0.05) * dt);
-  const canDrive = running && c.onTyres && c.jacks.every((j) => j < 0.05) && !c.failed;
+  const canDrive = running && (SPEC.crawler || (c.onTyres && c.jacks.every((j) => j < 0.05))) && !c.failed;
   const top = c.range === 'high' ? SPEC.topSpeed : SPEC.lowSpeed;
   let limit = top;
   // travel rules: beams in, boom low and short, load on tires only at a creep
-  if (c.beam > SPEC.outrigger.retracted.x + 0.05) limit = Math.min(limit, 0.6);
-  if (c.attached >= 0 && c.loads[c.attached].state === 'air') limit = Math.min(limit, 2.5 / 3.6);
-  if (c.length > SPEC.boomMin + 1 || c.angle > 0.35) limit = Math.min(limit, 5 / 3.6);
+  if (!SPEC.crawler) {
+    if (c.beam > SPEC.outrigger.retracted.x + 0.05) limit = Math.min(limit, 0.6);
+    if (c.attached >= 0 && c.loads[c.attached].state === 'air') limit = Math.min(limit, 2.5 / 3.6);
+    if (c.length > SPEC.boomMin + 1 || c.angle > 0.35) limit = Math.min(limit, 5 / 3.6);
+  } else if (c.attached >= 0 && c.loads[c.attached].state === 'air') limit = Math.min(limit, SPEC.lowSpeed * 0.5); // walking with a load
   const sign = c.dir === 'F' ? 1 : c.dir === 'R' ? -1 : 0;
   const target = canDrive && !c.park ? sign * c.pedal * limit : 0;
   const braking = c.brake > 0.05 || c.park;
   const rate = braking ? 2.5 * Math.max(c.brake, c.park ? 1 : 0) : Math.abs(target) < Math.abs(c.v) ? 1.2 : 0.6;
   c.v += Math.sign(target - c.v) * Math.min(Math.abs(target - c.v), rate * dt);
-  if (!c.onTyres) c.v = 0;
-  if (Math.abs(c.v) < 1e-4) return;
+  if (!c.onTyres && !SPEC.crawler) c.v = 0;
+  // crawlers counter-rotate their tracks: they turn on the spot
+  const pivot = SPEC.crawler && canDrive && !c.park ? c.steerInput * 0.035 : 0;
+  if (Math.abs(c.v) < 1e-4 && pivot === 0) return;
 
   // kinematics per steer mode: front axle (group) to the centre of the rear axles
   const rearAx = SPEC.axles.slice(SPEC.steerAxles);
   const base = SPEC.axles[0] - rearAx.reduce((a, z) => a + z, 0) / rearAx.length;
   let yaw = 0;
   let crab = 0;
-  if (c.steerMode === 'front') yaw = (c.v * Math.tan(c.steer)) / base;
+  if (SPEC.crawler) yaw = pivot;
+  else if (c.steerMode === 'front') yaw = (c.v * Math.tan(c.steer)) / base;
   else if (c.steerMode === 'rear') yaw = (-c.v * Math.tan(c.steer)) / base;
   else if (c.steerMode === 'all') yaw = (2 * c.v * Math.tan(c.steer)) / base;
   else crab = c.steer;
@@ -817,6 +838,7 @@ function hookAndLoad(c: Crane, dt: number) {
   if (air && c.rigPlan) ropeLen += c.rigPlan.height + (c.rigPlan.centre[1] - L!.def.cg[1]);
   c.ropeRate += ((ropeLen - prevRope) / dt - c.ropeRate) * Math.min(1, dt * 10);
   c.ropeLen = ropeLen;
+  if (L && L.def.upend && (L.up ?? 1) < 1 && c.rigPlan) return upending(c, L, tip, ropeLen, blk.mass, rigKg);
 
   // wind: gusting around the set mean
   c.wind += ((c.windSet * (1 + 0.35 * Math.sin(c.time * 0.7) * Math.sin(c.time * 0.23 + 1)) - c.wind) * Math.min(1, dt * 0.8));
@@ -967,6 +989,43 @@ function hookAndLoad(c: Crane, dt: number) {
   turnRotor(c, dt);
 }
 
+// ---------- upending a vessel ----------
+/** The hook holds the top trunnions; as it rises the vessel stands up about its foot, which a tailing trolley carries
+ *  in towards the crane (and lowers to the ground) so the top stays under the hook. Main crane's share of the weight
+ *  grows from a half (lying) to all of it (standing). */
+function upending(c: Crane, L: LoadState, tip: { x: number; y: number; z: number }, ropeLen: number, blkKg: number, rigKg: number) {
+  const p = c.rigPlan!;
+  const lug = p.centre[1];
+  const y0 = L.def.start.y;
+  const hookY = tip.y - ropeLen;
+  const s = clamp((hookY - p.height - y0) / (lug - y0 + 0.3), 0, 1);
+  const th = Math.asin(s);
+  const h = c.hook;
+  if (s > 0) {
+    L.up = th / (Math.PI / 2);
+    L.x = tip.x - Math.sin(L.yaw) * lug * Math.cos(th);
+    L.z = tip.z - Math.cos(L.yaw) * lug * Math.cos(th);
+    L.y = y0 - (y0 - 0.3) * s;
+    Object.assign(h, { x: tip.x, y: hookY, z: tip.z, vx: 0, vy: 0, vz: 0 });
+    c.take = 0.5 + 0.5 * s;
+  } else {
+    // slack: the hook hangs over the lying top
+    const top = vesselTop(L, lug);
+    Object.assign(h, { x: tip.x, y: Math.max(hookY, top.y + p.height), z: tip.z, vx: 0, vy: 0, vz: 0 });
+    c.take = 0;
+  }
+  c.tension = G * (blkKg + rigKg + c.take * L.def.kg);
+  if (s >= 0.999) {
+    L.up = 1;
+    L.x = tip.x;
+    L.z = tip.z;
+    L.y = 0.3;
+    c.take = 0.6;
+    c.events.push('upended');
+    say(c, `${L.def.name} sudah tegak di tailing trolley. Hoist naik pelan untuk mengangkat penuh, lalu swing ke pondasi.`);
+  }
+}
+
 // ---------- wind turbine rotor ----------
 /** Rotor on the nacelle (its frame): hub centre ahead of the main shaft flange, blade roots on a circle. */
 export const HUB = { x: 9.6, y: 2.55, r: 1.8 };
@@ -1048,7 +1107,19 @@ function loadCg(L: LoadState) {
   return { x: L.x + rotX(L, L.def.cg), y: L.y + L.def.cg[1], z: L.z + rotZ(L, L.def.cg) };
 }
 
+/** A point on a vessel's axis (distance a from its base) while it lies or is being upended (L at the base centre). */
+export function vesselTop(L: LoadState, a: number) {
+  const th = ((L.up ?? 1) * Math.PI) / 2;
+  const k = a * Math.cos(th);
+  return { x: L.x + Math.sin(L.yaw) * k, y: L.y + a * Math.sin(th), z: L.z + Math.cos(L.yaw) * k };
+}
+
 export function loadBox(L: LoadState, x: number, y: number, z: number): Obb {
+  if (L.def.upend && (L.up ?? 1) < 0.5) {
+    // lying: along its axis from the base
+    const [d, len] = L.def.size;
+    return { id: L.def.id, x: x + (Math.sin(L.yaw) * len) / 2, z: z + (Math.cos(L.yaw) * len) / 2, hx: d / 2, hz: len / 2, yaw: L.yaw, y0: y - d / 2, y1: y + d / 2 };
+  }
   return { id: L.def.id, x, z, hx: L.def.size[0] / 2, hz: L.def.size[2] / 2, yaw: L.yaw, y0: y, y1: y + L.def.size[1] };
 }
 
@@ -1103,7 +1174,7 @@ function rcl(c: Crane) {
   let note = chart.note;
   if (kg < chart.kg) note += kg === ropeKg ? ` · dibatasi tali ${partsOf(c)} jalur` : ' · dibatasi hook block';
   // estimated chart: never above 80 % of the load that would tip the crane now (a real chart is built that way)
-  if (chart.estimated && SPEC.model === 'zoomlion' && c.tipLoadKg > 0 && c.tipLoadKg < 999999 && 0.8 * c.tipLoadKg < kg) {
+  if (chart.estimated && (SPEC.model === 'zoomlion' || SPEC.crawler) && c.tipLoadKg > 0 && c.tipLoadKg < 999999 && 0.8 * c.tipLoadKg < kg) {
     kg = Math.round(0.8 * c.tipLoadKg);
     note += ' · dibatasi stabilitas';
   }
@@ -1152,9 +1223,15 @@ function masses(c: Crane) {
   };
   up(SPEC.mass.upper * 1000, 0, 2.4, -0.8);
   const cwShare = c.cwTarget !== c.cw ? c.cw + (c.cwTarget - c.cw) * c.cwT : c.cw;
-  up(cwShare * 1000, 0, 2.6, SPEC.cwArm);
   const t = tipUpper(c);
   const bm = boomMass(c);
+  if (SPEC.crawler) {
+    up(SPEC.houseCw * 1000, 0, SPEC.deckY + 2, SPEC.houseArm);
+    // superlift tray: hangs from the mast and carries what the boom and the hook ask for, up to what is on it (the
+    // rest of it stands on the ground), so the empty crane does not tip backwards
+    const need = (c.hookKg * Math.max(0, t.z) + bm * 1000 * (SPEC.pin.z + 0.42 * (t.z - SPEC.pin.z))) * 0.9;
+    up(clamp(need / -SPEC.cwArm, 0, cwShare * 1000), 0, 1.5, SPEC.cwArm);
+  } else up(cwShare * 1000, 0, 2.6, SPEC.cwArm);
   if (c.fly > 0 && SPEC.model === 'zoomlion') {
     // boom at its own centre, the wind boom at its middle (half of it on the ground while its tip rests there)
     const flyKg = SPEC.mass.fly[FLY.lengths.indexOf(c.fly)] * 1000;

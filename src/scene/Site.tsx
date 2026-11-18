@@ -4,7 +4,7 @@
 import { Text } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GATE_W, GENHOUSE, JIB_LAYDOWN, LOADS, POWERLINE, PRESS_SPOT, TOWER, TOWER_SPOT } from '../sim/site';
+import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GATE_W, GENHOUSE, JIB_LAYDOWN, LOADS, POWERLINE, PRESS_SPOT, SANY_SPOT, TOWER, TOWER_SPOT, forModel } from '../sim/site';
 import { SPEC } from '../sim/spec';
 import { Bake } from './Bake';
 import { bladeSection } from './Loads';
@@ -56,7 +56,7 @@ function Ground() {
         <meshStandardMaterial map={gravel} roughness={0.95} />
       </mesh>
       {/* fields beyond the yard: the 4 000 t crane's camera sees much farther */}
-      {SPEC.model === 'zoomlion' && (
+      {SPEC.bigView && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
           <planeGeometry args={[2400, 2400]} />
           <meshStandardMaterial color="#8a8f6a" roughness={1} />
@@ -203,7 +203,7 @@ function Foundations() {
         </mesh>
       ))}
       {/* timbers under the loads waiting in the laydown yard */}
-      {LOADS.filter((l) => l.start.y > 0.05 && !l.bolt && (!l.only || l.only === SPEC.model)).map((l) => {
+      {LOADS.filter((l) => l.start.y > 0.05 && !l.bolt && !l.upend && forModel(l)).map((l) => {
         const [sx, , sz] = l.size;
         return [-0.4, 0, 0.4].map((k) => {
           const c = Math.cos(l.start.yaw);
@@ -263,6 +263,45 @@ function WindTower() {
       <Text position={[0, 22, -r(22) - 0.05]} rotation={[0, Math.PI, 0]} fontSize={1.2} color="#2a5d8f">
         WTG-07 · HUB 150 m
       </Text>
+    </group>
+  );
+}
+
+/** Refinery plot for the SANY: SPMT transporters with saddles under the lying vessels, the lift-plan spot. */
+function Refinery() {
+  const ring = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff6a00', transparent: true, opacity: 0.85, depthWrite: false }), []);
+  return (
+    <group>
+      {LOADS.filter((l) => l.upend && forModel(l)).map((l) => {
+        const len = l.size[1];
+        const r = l.size[0] / 2;
+        const dx = Math.sin(l.start.yaw);
+        const dz = Math.cos(l.start.yaw);
+        const deck = l.start.y - r - 0.9; // saddles 0.9 m
+        const at = (k: number): [number, number, number] => [l.start.x + dx * len * k, 0, l.start.z + dz * len * k];
+        return (
+          <group key={l.id}>
+            {[0.15, 0.78].map((k) => (
+              <group key={k} position={at(k)} rotation={[0, l.start.yaw, 0]}>
+                {/* SPMT: low platform on rows of small wheels, saddle on top */}
+                <Box s={[6, 0.9, 14]} m={M.hookYellow} position={[0, deck - 0.45, 0]} />
+                {Array.from({ length: 6 }, (_, i) =>
+                  [-2.2, 2.2].map((x) => <Cyl key={`${i}${x}`} r={0.55} l={0.5} axis="x" m={M.rubber} position={[x, 0.55, -5.5 + i * 2.2]} seg={12} />),
+                )}
+                <Box s={[r * 2.2, 0.9, 1.6]} m={M.steel} position={[0, deck + 0.45, 0]} />
+              </group>
+            ))}
+          </group>
+        );
+      })}
+      <group position={[SANY_SPOT.x, 0.05, SANY_SPOT.z]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} material={ring}>
+          <ringGeometry args={[1.2, 1.5, 32]} />
+        </mesh>
+        <Text position={[0, 0.02, -3]} rotation={[-Math.PI / 2, 0, 0]} fontSize={1.4} color="#ff6a00">
+          LIFT PLAN SCC45000A · PUSAT SWING DI SINI
+        </Text>
+      </group>
     </group>
   );
 }
@@ -457,6 +496,7 @@ export function Site() {
         {SPEC.model === 'zoomlion' && <TowerPlan />}
         {SPEC.model === 'zoomlion' && <BladeStands />}
         {SPEC.model === 'zoomlion' && <JibStrip />}
+        {SPEC.crawler && <Refinery />}
         <PowerLine />
         <Surroundings />
       </Bake>

@@ -63,6 +63,8 @@ export function plan(load: LoadDef, rig: RigItem): RigPlan {
   if (tension > rig.wll) return { ...res, ok: false, problem: `Tegangan per kaki ${(tension / 1000).toFixed(1)} t melebihi WLL ${(rig.wll / 1000).toFixed(1)} t.` };
   if (load.look === 'chiller' && rig.kind !== 'spreader') return { ...res, ok: false, problem: 'Titik angkat di rangka bawah: tanpa spreader, sling akan menekan dan merusak casing chiller.' };
   if (load.look === 'genset' && rig.kind !== 'spreader') return { ...res, ok: false, problem: 'Sling langsung akan menekan radiator dan panel genset: pakai spreader bar.' };
+  if (load.upend && !rig.id.startsWith('lbeam')) return { ...res, ok: false, problem: 'Bejana diangkat di trunnion atas dengan lifting beam (upending): sling biasa tidak bisa.' };
+  if (rig.id.startsWith('lbeam') && !load.upend) return { ...res, ok: false, problem: 'Lifting beam trunnion hanya untuk bejana (reaktor/kolom).' };
   if (load.look === 'blade' && rig.id !== 'yoke') return { ...res, ok: false, problem: 'Bilah fiberglass harus dijepit blade yoke: sling biasa bisa memecahkan atau melipat bilah.' };
   if (rig.id === 'yoke' && load.look !== 'blade') return { ...res, ok: false, problem: 'Blade yoke hanya untuk bilah rotor.' };
   if (load.look === 'nacelle' && rig.kind !== 'spreader') return { ...res, ok: false, problem: 'Sling langsung akan memecahkan cover nacelle (fiberglass): pakai spreader nacelle.' };
