@@ -3,7 +3,7 @@ import { CAMS, KEYS_COMMON, KEYS_CRANE, KEYS_DRIVE, PAD_KEYS, bindKeys, toggleEn
 import { FULL, setQuality } from '../scene/Adaptive';
 import { Experience } from '../scene/Experience';
 import { chartTable, stopIndex } from '../sim/chart';
-import { attachRig, detachRig, hangLen, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
+import { attachRig, detachRig, hangLen, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
 import { plan } from '../sim/rigging';
 import { RIGGING } from '../sim/site';
 import { BLOCKS, FLY, SPEC, maxParts } from '../sim/spec';
@@ -65,6 +65,10 @@ function CraneLevers() {
         <Lever label="⟳ Swing kanan (D)" k="lx" v={1} />
         <Lever label="⇥ Telescope keluar (E)" k="ly" v={-1} />
         <Lever label="⇤ Telescope masuk (Q)" k="ly" v={1} />
+        <button onClick={() => lockBoom(cr, -1)}>🔒 Pin masuk ([)</button>
+        <button onClick={() => lockBoom(cr, 1)}>🔒 Pin keluar (])</button>
+        <button onClick={() => lockBoom(cr)}>🔒 Kunci pin terdekat (K)</button>
+        <span className="pinhint">{stopIndex(cr.length) >= 0 ? `Terkunci ${fmt(cr.length, 2)} m` : `Belum terkunci (${fmt(cr.length, 2)} m)`}</span>
         <Lever label="⤒ Hoist naik (R)" k="rx" v={1} />
         <Lever label="⤓ Hoist turun (F)" k="rx" v={-1} />
       </div>
@@ -355,7 +359,7 @@ function Rcl() {
   if (cr.lineDist < 3.05) alarms.push(`SUTM ${fmt(cr.lineDist)} m`);
   if (cr.wind > 9) alarms.push(`ANGIN ${fmt(cr.wind)} m/s`);
   if (cr.bypass) alarms.push('BYPASS');
-  if (!pinned) alarms.push('BOOM BELUM TERKUNCI');
+  if (!pinned) alarms.push('BOOM BELUM TERKUNCI · tekan K');
   return (
     <section className="rcl" aria-label="RCL">
       <header>

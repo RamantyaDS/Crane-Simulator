@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rated } from './chart';
-import { attachRig, create, hangLen, radius, resetHook, setBlock, setDir, startEngine, step, tipWorld, type Crane } from './crane';
+import { attachRig, create, hangLen, lockBoom, radius, resetHook, setBlock, setDir, startEngine, step, tipWorld, type Crane } from './crane';
 import { plan } from './rigging';
 import { LOADS, PRESS_SPOT, RIGGING } from './site';
 import { SPEC } from './spec';
@@ -112,6 +112,19 @@ describe('RTC-80160 crane', () => {
     const period = (t1 - t0) / 2;
     expect(period).toBeGreaterThan(2 * Math.PI * Math.sqrt(L / 9.81) * 0.9);
     expect(period).toBeLessThan(2 * Math.PI * Math.sqrt(L / 9.81) * 1.1);
+  });
+
+  it('lock boom: telescopes to a pin position and latches (the chart applies again)', () => {
+    const c = ready();
+    onOutriggers(c);
+    c.length = 29.2; // between pins: no rating
+    c.drum += 20 * c.parts;
+    lockBoom(c);
+    run(c, 15);
+    expect(c.length).toBe(30.5);
+    lockBoom(c, 1);
+    run(c, 30);
+    expect(c.length).toBe(35.1);
   });
 
   it('two-block switch stops the hook short of the boom head', () => {

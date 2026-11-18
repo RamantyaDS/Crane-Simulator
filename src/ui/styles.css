@@ -884,3 +884,8 @@ button.on {
   padding: 7px 4px;
   font-size: 12px;
 }
+.pinhint {
+  align-self: center;
+  font-size: 11px;
+  color: var(--dim);
+}

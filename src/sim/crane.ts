@@ -86,6 +86,7 @@ export interface Crane {
   flyTarget: number;
   flyOffset: number;
   flyT: number; // erection progress
+  pinTarget: number; // pin length the boom is telescoping to by itself (0 = none)
   // levers −1..1
   swingLever: number;
   luffLever: number; // + boom up
@@ -187,6 +188,7 @@ export function create(): Crane {
     flyTarget: 0,
     flyOffset: 2,
     flyT: 0,
+    pinTarget: 0,
     swingLever: 0,
     luffLever: 0,
     teleLever: 0,
@@ -363,6 +365,17 @@ export function setCounterweight(c: Crane, t: number) {
   c.cwT = 0;
   c.events.push('cw');
 }
+/** Lock the boom on the nearest pin position (or the next one out / in with dir ±1). */
+export function lockBoom(c: Crane, dir = 0) {
+  if (c.attached >= 0 && c.loads[c.attached].state === 'air' && c.pct > 0.1) return say(c, 'Pin & latch: turunkan beban dulu, boom tidak bisa di-telescope saat membawa beban.');
+  const stops = SPEC.stops;
+  let target = stops.reduce((a, s) => (Math.abs(s - c.length) < Math.abs(a - c.length) ? s : a), stops[0]);
+  if (dir > 0) target = stops.find((s) => s > c.length + 0.05) ?? stops[stops.length - 1];
+  if (dir < 0) target = [...stops].reverse().find((s) => s < c.length - 0.05) ?? stops[0];
+  c.pinTarget = target;
+  say(c, `Telescope ke posisi pin ${target.toString().replace('.', ',')} m…`);
+}
+
 export function setFly(c: Crane, len: number) {
   if (len === c.fly && len === c.flyTarget) return;
   if (c.length > SPEC.boomMin + 0.2 || c.angle > (6 * Math.PI) / 180) return say(c, 'Pasang/lepas fly: boom ditarik penuh dan diturunkan dulu (di bawah 6°).');
@@ -448,7 +461,7 @@ function engine(c: Crane, dt: number) {
   }
   if (c.engine !== 'running') return;
   // demand: drive pedal, hand throttle, and the auto-throttle that crane functions bring
-  const work = Math.max(Math.abs(c.swingLever), Math.abs(c.luffLever), Math.abs(c.teleLever), Math.abs(c.hoistLever));
+  const work = Math.max(Math.abs(c.swingLever), Math.abs(c.luffLever), Math.abs(c.teleLever), Math.abs(c.hoistLever), c.pinTarget > 0 ? 1 : 0);
   const throttle = Math.max(c.pedal, c.hand, 0.8 * work);
   const target = SPEC.idleRpm + throttle * (SPEC.maxRpm - SPEC.idleRpm);
   const hydraulic = 0.25 * work + (c.jackCmd !== 0 || c.autoLevel ? 0.15 : 0) + Math.abs(c.v) * 0.04;
@@ -662,6 +675,17 @@ function upper(c: Crane, dt: number) {
     c.length = clamp(c.length + tv * SPEC.teleRate * f * dt, SPEC.boomMin, SPEC.boomMax);
     // snap onto a pin position when the lever is let go close to one
     if (c.length !== before && c.fly > 0 && c.length < SPEC.boomMax - 0.01 && !c.msg) say(c, 'Fly hanya diizinkan dengan boom penuh 59,5 m.');
+    c.pinTarget = 0;
+  } else if (c.pinTarget > 0 && on) {
+    // "lock boom": the telescope runs to the chosen pin position by itself and latches there
+    const d = c.pinTarget - c.length;
+    c.length += Math.sign(d) * Math.min(Math.abs(d), SPEC.teleRate * f * dt);
+    if (Math.abs(c.pinTarget - c.length) < 0.001) {
+      c.length = c.pinTarget;
+      c.pinTarget = 0;
+      c.events.push('lock');
+      say(c, `Boom terkunci pin di ${c.length.toString().replace('.', ',')} m.`);
+    }
   } else {
     const near = SPEC.stops.reduce((a, s) => (Math.abs(s - c.length) < Math.abs(a - c.length) ? s : a), SPEC.stops[0]);
     if (Math.abs(near - c.length) < 0.6 && Math.abs(near - c.length) > 0.001 && on) c.length += Math.sign(near - c.length) * Math.min(Math.abs(near - c.length), 0.2 * dt);

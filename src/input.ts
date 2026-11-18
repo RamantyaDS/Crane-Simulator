@@ -1,6 +1,6 @@
 // Keyboard, gamepad and touch for the two jobs of the one cab: driving the carrier and working the crane.
 // Crane levers follow the usual two-joystick layout: left swing / telescope, right boom / hoist.
-import { setDir, startEngine, stopEngine, toggleSwingLock } from './sim/crane';
+import { lockBoom, setDir, startEngine, stopEngine, toggleSwingLock } from './sim/crane';
 import { ensureAudio } from './sound';
 import { cr, toast, useUI, type CamMode } from './store';
 
@@ -26,6 +26,8 @@ export const KEYS_CRANE: [string, string][] = [
   ['R / F', 'Hoist naik / turun'],
   ['Spasi', 'Rem swing (pedal)'],
   ['L', 'Swing lock'],
+  ['K', 'Kunci boom di posisi pin terdekat'],
+  ['] / [', 'Telescope otomatis ke pin berikutnya keluar / masuk'],
   ['Z / X', 'Tag line: putar beban'],
   ['Shift', 'Hoist kecepatan tinggi (tahan)'],
   ['T / G', 'Gas tangan naik / turun'],
@@ -87,6 +89,9 @@ function onKey(e: KeyboardEvent) {
     else if (k === 'h') cr.range = cr.range === 'high' ? 'low' : 'high';
     else if ('1234'.includes(k)) cr.steerMode = (['front', 'rear', 'all', 'crab'] as const)[+k - 1];
   } else if (k === 'l') toggleSwingLock(cr);
+  else if (k === 'k') lockBoom(cr);
+  else if (k === ']') lockBoom(cr, 1);
+  else if (k === '[') lockBoom(cr, -1);
 }
 
 export function bindKeys() {
