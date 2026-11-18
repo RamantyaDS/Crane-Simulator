@@ -4,7 +4,7 @@ import { RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { type LoadState } from '../sim/crane';
+import { HUB, bladeTarget, nacelleUp, type LoadState } from '../sim/crane';
 import { RIGGING, type LoadDef } from '../sim/site';
 import { cr, useUI } from '../store';
 import { Bake } from './Bake';
@@ -280,7 +280,108 @@ function Nacelle({ d }: { d: LoadDef }) {
   );
 }
 
+/** Blade planform (fraction of the length from the root): chord and thickness, m. Round root, widest at a sixth. */
+const PROFILE: [number, number, number][] = [
+  [0, 3.4, 3.4],
+  [0.04, 3.4, 3.4],
+  [0.09, 3.8, 2.7],
+  [0.17, 4.2, 1.9],
+  [0.3, 3.6, 1.2],
+  [0.5, 2.7, 0.7],
+  [0.7, 1.9, 0.45],
+  [0.85, 1.3, 0.3],
+  [0.95, 0.8, 0.18],
+  [1, 0.3, 0.08],
+];
+export function bladeSection(t: number): [number, number] {
+  let i = 1;
+  while (i < PROFILE.length - 1 && PROFILE[i][0] < t) i++;
+  const [t0, c0, h0] = PROFILE[i - 1];
+  const [t1, c1, h1] = PROFILE[i];
+  const k = Math.min(1, Math.max(0, (t - t0) / (t1 - t0)));
+  return [c0 + (c1 - c0) * k, h0 + (h1 - h0) * k];
+}
+
+/** Lofted blade between two fractions of its length: airfoil-like sections (blunt leading edge, thin trailing edge),
+ *  chord level, along local x from the root at -L/2, axis at the height of the root's centre. */
+function bladeGeo(len: number, axisY: number, from: number, to: number) {
+  const ring = 16;
+  const ts: number[] = [from];
+  for (const [t] of PROFILE) if (t > from && t < to) ts.push(t);
+  ts.push(to);
+  const pos: number[] = [];
+  const idx: number[] = [];
+  ts.forEach((t, j) => {
+    const [c, h] = bladeSection(t);
+    const round = Math.max(0, 1 - t / 0.06); // the root is a plain tube
+    for (let i = 0; i < ring; i++) {
+      const a = (i / ring) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const lead = ca > 0 ? 0.38 : 0.62; // leading edge forward of the axis
+      const z = c * (round * 0.5 + (1 - round) * lead) * ca;
+      const y = (h / 2) * Math.sin(a) * (1 + (1 - round) * 0.25 * ca);
+      pos.push(-len / 2 + t * len, axisY + y, z);
+      if (j > 0) {
+        const p = (j - 1) * ring;
+        const q = j * ring;
+        const n = (i + 1) % ring;
+        idx.push(p + i, p + n, q + i, p + n, q + n, q + i);
+      }
+    }
+  });
+  // close the far end
+  const last = (ts.length - 1) * ring;
+  pos.push(-len / 2 + to * len, axisY, 0);
+  const cap = pos.length / 3 - 1;
+  for (let i = 0; i < ring; i++) idx.push(last + i, last + ((i + 1) % ring), cap);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Rotor blade: white glass-fibre shell, grey root flange, red tip for aviation marking, yellow yoke marks. */
+function Blade({ d }: { d: LoadDef }) {
+  const [len] = d.size;
+  const y = d.cg[1];
+  const geo = useMemo(() => [bladeGeo(len, y, 0, 0.93), bladeGeo(len, y, 0.93, 1)], [len, y]);
+  return (
+    <group>
+      <mesh geometry={geo[0]} material={M.white} castShadow receiveShadow />
+      <mesh geometry={geo[1]} material={M.red} castShadow />
+      <Cyl r={1.78} l={0.25} axis="x" m={M.greyLight} position={[-len / 2 + 0.12, y, 0]} seg={28} />
+      {d.points.map((p, i) => (
+        <Box key={i} s={[0.25, 0.08, 4.4]} m={M.hookYellow} position={[p[0], p[1] - 0.25, 0]} />
+      ))}
+    </group>
+  );
+}
+
+/** Hub and spinner on the nacelle's main shaft: turns with the rotor; three pitch-bearing flanges for the blades. */
+function Hub() {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    ref.current!.rotation.x = cr.rotor;
+  });
+  return (
+    <group ref={ref} position={[HUB.x, HUB.y, 0]} userData={{ noBake: true }}>
+      <mesh material={M.white} scale={[1.25, 1, 1]} castShadow>
+        <sphereGeometry args={[2.3, 24, 16]} />
+      </mesh>
+      <Cyl r={0.15} r2={2.2} l={2.2} axis="x" m={M.white} position={[3.2, 0, 0]} seg={24} />
+      {[0, 1, 2].map((k) => (
+        // flange k reaches three o'clock (+z) when the rotor has turned k thirds
+        <group key={k} rotation={[(-k * 2 * Math.PI) / 3, 0, 0]}>
+          <Cyl r={1.75} l={0.3} axis="z" m={M.greyLight} position={[0, 0, HUB.r - 0.1]} seg={28} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
 function LoadMesh({ d }: { d: LoadDef }) {
+  if (d.look === 'blade') return <Blade d={d} />;
   if (d.look === 'nacelle') return <Nacelle d={d} />;
   if (d.look === 'genset') return <Genset />;
   if (d.look === 'transformer') return <Transformer d={d} />;
@@ -293,18 +394,69 @@ function LoadMesh({ d }: { d: LoadDef }) {
 
 function OneLoad({ L }: { L: LoadState }) {
   const ref = useRef<THREE.Group>(null);
+  const hub = useRef<THREE.Group>(null);
+  const root = useRef<THREE.Group>(null);
   const e = useMemo(() => new THREE.Euler(), []);
   useFrame(() => {
     const g = ref.current!;
+    const N = L.def.bolt && L.placed ? nacelleUp(cr) : null;
+    if (N) {
+      // a bolted blade turns with the hub: nacelle frame, hub centre, rotor angle, then out along its flange
+      g.position.set(N.x, N.y, N.z);
+      g.rotation.set(0, N.yaw, 0);
+      hub.current!.position.set(HUB.x, HUB.y, 0);
+      hub.current!.rotation.x = cr.rotor - ((L.slot ?? 0) * 2 * Math.PI) / 3;
+      root.current!.position.set(0, -L.def.cg[1], HUB.r + L.def.size[0] / 2);
+      root.current!.rotation.y = -Math.PI / 2;
+      return;
+    }
+    hub.current!.position.set(0, 0, 0);
+    hub.current!.rotation.x = 0;
+    root.current!.position.set(0, 0, 0);
+    root.current!.rotation.y = 0;
     g.position.set(L.x, L.y, L.z);
     if (L.state === 'fallen') g.rotation.copy(e.set(0.3, L.yaw, 0.5, 'YXZ'));
     else g.rotation.copy(e.set(L.state === 'air' ? L.tilt : 0, L.yaw, 0, 'YXZ'));
   });
   return (
     <group ref={ref}>
-      <Bake>
-        <LoadMesh d={L.def} />
-      </Bake>
+      <group ref={hub}>
+        <group ref={root}>
+          <Bake>
+            <LoadMesh d={L.def} />
+          </Bake>
+        </group>
+      </group>
+      {L.def.look === 'nacelle' && <Hub />}
+    </group>
+  );
+}
+
+/** Where the blade must go: a ghost of its root at the free flange and its axis at three o'clock. */
+function BladeGoal({ L }: { L: LoadState }) {
+  const ref = useRef<THREE.Group>(null);
+  const yellow = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffd21a', transparent: true, opacity: 0.35, depthWrite: false }), []);
+  const [len, h, w] = L.def.size;
+  useFrame(() => {
+    const T = bladeTarget(cr, L);
+    const g = ref.current!;
+    g.visible = !!T && !L.placed;
+    if (T) {
+      g.position.set(T.x, T.y, T.z);
+      g.rotation.set(0, T.yaw, 0);
+    }
+  });
+  return (
+    <group ref={ref}>
+      <mesh position={[-len / 2 + 1, h / 2, 0]} material={yellow}>
+        <boxGeometry args={[2, h + 0.4, w + 0.4]} />
+      </mesh>
+      <mesh position={[0, h / 2, 0]} material={yellow}>
+        <boxGeometry args={[len, 0.12, 0.12]} />
+      </mesh>
+      <Text position={[-len / 2 + 6, h + 3, 0]} rotation={[0, Math.PI / 2, 0]} fontSize={2.2} color="#ffd21a" outlineWidth={0.04} outlineColor="#222" anchorY="bottom">
+        ▼ akar bilah ke flange hub
+      </Text>
     </group>
   );
 }
@@ -322,6 +474,7 @@ function Destination() {
     [sx / 2 + 0.15, 0, 0.1, sz + 0.3],
     [-sx / 2 - 0.15, 0, 0.1, sz + 0.3],
   ];
+  if (L.def.bolt) return <BladeGoal L={L} />;
   if (L.placed) return null;
   return (
     <group position={[d.x, d.y + 0.03, d.z]} rotation={[0, d.yaw, 0]}>

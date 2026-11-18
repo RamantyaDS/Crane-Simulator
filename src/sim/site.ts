@@ -88,9 +88,10 @@ export interface LoadDef {
   start: { x: number; z: number; yaw: number; y: number };
   dest: { x: number; z: number; yaw: number; y: number; label: string };
   note: string;
-  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo' | 'nacelle';
+  look: 'genset' | 'transformer' | 'chiller' | 'slab' | 'beams' | 'tank' | 'bigtrafo' | 'nacelle' | 'blade';
   only?: ModelId; // a load for one crane only
   mount?: boolean; // set on a yaw bearing: any heading, resting on its centre
+  bolt?: boolean; // a rotor blade: bolted to the hub in the air, never set down there
 }
 
 export const FOUNDATIONS: { id: string; b: Obb; y: number }[] = [];
@@ -244,7 +245,33 @@ export const LOADS: LoadDef[] = [
     only: 'zoomlion',
     mount: true,
   },
+  ...[0, 1, 2].map(blade),
 ];
+
+/** Rotor blades on their stands west of the crane, root to the south: lifted level one at a time with a blade yoke and
+ *  bolted to the hub at three o'clock (single-blade installation), the hub turned 120 deg between them. */
+function blade(i: number): LoadDef {
+  const L = 72;
+  return {
+    id: `blade${i + 1}`,
+    name: `Bilah rotor ${i + 1}/3 (72 m)`,
+    kg: 24000,
+    size: [L, 3.4, 4.2],
+    cg: [-12.5, 1.7, 0], // a third of the way out from the root
+    points: [
+      [-14.5, 3.4, 0],
+      [-10.5, 3.4, 0],
+    ],
+    pairs: [[0, 1]],
+    start: { x: -44 - 6 * i, z: -11 + L / 2, yaw: -Math.PI / 2, y: 1.0 },
+    // nominal (nacelle facing the crane); the sim aims at the hub of the nacelle as it was really set
+    dest: { x: TOWER.x + 9.6, z: TOWER.z + 1.8 + L / 2, yaw: -Math.PI / 2, y: TOWER.h + 2.55 - 1.7, label: 'Flange hub (jam 3)' },
+    note: 'Bilah 72 m, 24 t, diangkat datar dengan blade yoke di titik beratnya. Pasang nacelle dulu. Di atas, masukkan akar bilah ke flange hub (toleransi 60 cm, 5°): tag line Z/X memutar bilah.',
+    look: 'blade',
+    only: 'zoomlion',
+    bolt: true,
+  };
+}
 
 /** Where the lift plan puts the crane for the main transformer (between its skids and its pad). */
 export const PRESS_SPOT = { x: -14, z: 2, heading: 0 };
@@ -279,4 +306,5 @@ export const RIGGING: RigItem[] = [
   { id: 'sp3h', name: 'Spreader berat 3 m (150 t) + sling 4 m', kind: 'spreader', legLen: 4, wll: 60000, span: 3, spreaderWll: 150000, kg: 2200 },
   { id: 'sp4h', name: 'Spreader berat 4 m (150 t) + sling 4,5 m', kind: 'spreader', legLen: 4.5, wll: 63000, span: 4, spreaderWll: 150000, kg: 2350 },
   { id: 'sp9h', name: 'Spreader nacelle 9 m (200 t) + sling 8 m', kind: 'spreader', legLen: 8, wll: 100000, span: 9, spreaderWll: 200000, kg: 6500 },
+  { id: 'yoke', name: 'Blade yoke (penjepit bilah) 40 t + sling 4 m', kind: 'spreader', legLen: 4, wll: 25000, span: 4, spreaderWll: 40000, kg: 9000 },
 ];

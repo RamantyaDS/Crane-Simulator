@@ -32,6 +32,7 @@ export interface LoadState {
   state: 'rest' | 'air' | 'fallen';
   placed: boolean; // set down at its destination
   damage: number;
+  slot?: number; // a rotor blade: which hub flange it was bolted to
 }
 
 export interface Crane {
@@ -134,6 +135,9 @@ export interface Crane {
   time: number;
   events: string[];
   msg: string;
+  rotor: number; // wind turbine hub angle, rad (turning gear, then free spinning)
+  rotorV: number;
+  turbine: boolean; // all blades on: the turbine runs
 }
 
 export function createLoads(): LoadState[] {
@@ -232,6 +236,9 @@ export function create(): Crane {
     time: 0,
     events: [],
     msg: '',
+    rotor: 0,
+    rotorV: 0,
+    turbine: false,
   };
   // hook stowed: hanging a little below the boom head
   c.drum = ropeAlong(c) + 2.2 * c.parts;
@@ -781,7 +788,7 @@ function hookAndLoad(c: Crane, dt: number) {
   if (air) {
     const box = loadBox(L!, px, py - L!.def.cg[1], pz);
     const hit = OBSTACLES.find((o) => overlaps(box, o)) ?? null;
-    const other = c.loads.find((o) => o !== L && overlaps(box, loadBox(o, o.x, o.y, o.z)));
+    const other = c.loads.find((o) => o !== L && !(o.def.bolt && o.placed) && overlaps(box, loadBox(o, o.x, o.y, o.z)));
     if (hit || other) {
       const sp = Math.hypot(h.vx, h.vy, h.vz);
       px = h.x;
@@ -831,7 +838,7 @@ function hookAndLoad(c: Crane, dt: number) {
     const reach = hangLen(c) + 0.6 + c.rigPlan.height; // head to the lifting point with everything taut
     const dist = Math.hypot(tip.x - lp.x, tip.y - lp.y, tip.z - lp.z);
     const stretch = reach - dist; // < 0: taut and pulling
-    const wantTake = clamp(-stretch / 0.15, 0, 1.2);
+    const wantTake = L.def.bolt && L.placed ? 0 : clamp(-stretch / 0.15, 0, 1.2); // a bolted blade hangs on the hub
     c.take += (wantTake - c.take) * Math.min(1, dt * 6);
     if (c.take > 1.0) {
       // lift-off: the load starts hanging where it is, swinging if the hook was not right over it
@@ -886,8 +893,82 @@ function hookAndLoad(c: Crane, dt: number) {
         say(c, 'Beban mendarat terlalu keras!');
       }
       settle(c, L);
-    }
+    } else if (L.def.bolt) tryBolt(c, L);
   }
+  turnRotor(c, dt);
+}
+
+// ---------- wind turbine rotor ----------
+/** Rotor on the nacelle (its frame): hub centre ahead of the main shaft flange, blade roots on a circle. */
+export const HUB = { x: 9.6, y: 2.55, r: 1.8 };
+const THIRD = (2 * Math.PI) / 3;
+
+export function nacelleUp(c: Crane) {
+  return c.loads.find((l) => l.def.look === 'nacelle' && l.placed) ?? null;
+}
+
+/** Pose a blade must hang in to meet the free flange: level at three o'clock, root on the hub (null: no nacelle yet). */
+export function bladeTarget(c: Crane, L: LoadState) {
+  const N = nacelleUp(c);
+  if (!N) return null;
+  const [x, z] = toWorld(N.x, N.z, N.yaw, HUB.x, HUB.r + L.def.size[0] / 2);
+  return { x, z, y: N.y + HUB.y - L.def.cg[1], yaw: N.yaw - Math.PI / 2 };
+}
+
+/** How far a hanging blade's root is from the free flange (m) and its heading error (rad); null while the hub cannot take it. */
+export function bladeError(c: Crane, L: LoadState) {
+  const T = bladeTarget(c, L);
+  const bolted = c.loads.filter((l) => l.def.bolt && l.placed).length;
+  if (!T || Math.abs(c.rotor - bolted * THIRD) > 0.01) return null;
+  const half = L.def.size[0] / 2;
+  const [rx, rz] = toWorld(L.x, L.z, L.yaw, -half, 0);
+  const [tx, tz] = toWorld(T.x, T.z, T.yaw, -half, 0);
+  return { off: Math.hypot(rx - tx, rz - tz, L.y - T.y), yaw: Math.abs(Math.atan2(Math.sin(L.yaw - T.yaw), Math.cos(L.yaw - T.yaw))), T, bolted };
+}
+
+/** The fitters bolt the root on once it is in the flange and lined up. */
+function tryBolt(c: Crane, L: LoadState) {
+  const e = bladeError(c, L);
+  if (!e || e.off > 0.6 || e.yaw > (5 * Math.PI) / 180) return;
+  Object.assign(L, { ...e.T, tilt: 0, state: 'rest', placed: true, slot: e.bolted });
+  c.take = 0;
+  c.hook.vx = c.hook.vy = c.hook.vz = 0;
+  c.events.push('placed');
+  const n = c.loads.filter((l) => l.def.bolt).length;
+  say(c, `${L.def.name} terbaut ke hub (meleset ${Math.round(e.off * 100)} cm). Lepas blade yoke, lalu hub diputar 120°${e.bolted + 1 < n ? ' untuk bilah berikutnya' : ''}.`);
+}
+
+/** The rotor brake stays on while the boom head or the hook is inside the swept disc (within 8 m of the rotor plane). */
+export function boomInRotor(c: Crane) {
+  const N = nacelleUp(c);
+  if (!N) return false;
+  const [hx, hz] = toWorld(N.x, N.z, N.yaw, HUB.x, 0);
+  const hy = N.y + HUB.y;
+  const R = Math.max(...c.loads.filter((l) => l.def.bolt).map((l) => l.def.size[0])) + HUB.r + 5;
+  const ax = Math.cos(N.yaw);
+  const az = -Math.sin(N.yaw);
+  const inside = (p: { x: number; y: number; z: number }) => {
+    const along = (p.x - hx) * ax + (p.z - hz) * az;
+    return Math.abs(along) < 8 && Math.hypot(p.x - hx - along * ax, p.y - hy, p.z - hz - along * az) < R;
+  };
+  return inside(tipWorld(c)) || inside(c.hook);
+}
+
+/** Turning gear brings the next free flange to three o'clock once the yoke is off; all blades on, the wind takes over. */
+function turnRotor(c: Crane, dt: number) {
+  const blades = c.loads.filter((l) => l.def.bolt);
+  if (!blades.length) return;
+  const free = blades.filter((l) => l.placed && c.loads[c.attached] !== l).length;
+  if (free === blades.length) {
+    if (!c.turbine) {
+      if (boomInRotor(c)) return;
+      c.turbine = true;
+      c.events.push('turbine');
+      say(c, 'Rotor lengkap! Rem rotor dilepas dan angin memutar bilah: WTG-07 6 MW mulai menyuplai listrik.');
+    }
+    c.rotorV += (clamp(0.25 + c.wind * 0.08, 0.3, 1.2) - c.rotorV) * Math.min(1, dt * 0.15);
+    c.rotor += c.rotorV * dt;
+  } else c.rotor += clamp(free * THIRD - c.rotor, -0.4 * dt, 0.4 * dt);
 }
 
 const rotX = (L: LoadState, p: number[]) => toWorld(0, 0, L.yaw, p[0], p[2])[0];

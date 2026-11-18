@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { ANNEX, COLUMNS, EXCAVATION, FACTORY, FOUNDATIONS, GENHOUSE, LOADS, POWERLINE, PRESS_SPOT, TOWER, TOWER_SPOT } from '../sim/site';
 import { SPEC } from '../sim/spec';
 import { Bake } from './Bake';
+import { bladeSection } from './Loads';
 import { Box, Cyl, M, useCanvasTexture } from './parts';
 
 const S = {
@@ -202,7 +203,7 @@ function Foundations() {
         </mesh>
       ))}
       {/* timbers under the loads waiting in the laydown yard */}
-      {LOADS.filter((l) => l.start.y > 0.05 && (!l.only || l.only === SPEC.model)).map((l) => {
+      {LOADS.filter((l) => l.start.y > 0.05 && !l.bolt && (!l.only || l.only === SPEC.model)).map((l) => {
         const [sx, , sz] = l.size;
         return [-0.4, 0, 0.4].map((k) => {
           const c = Math.cos(l.start.yaw);
@@ -262,6 +263,39 @@ function WindTower() {
       <Text position={[0, 22, -r(22) - 0.05]} rotation={[0, Math.PI, 0]} fontSize={1.2} color="#2a5d8f">
         WTG-07 · HUB 150 m
       </Text>
+    </group>
+  );
+}
+
+/** Steel root stands and padded tip cradles the blades arrive on. */
+function BladeStands() {
+  return (
+    <group>
+      {LOADS.filter((l) => l.bolt).map((l) => {
+        const [len] = l.size;
+        const { x, z, y, yaw } = l.start;
+        const at = (t: number) => [x + (-len / 2 + t * len) * Math.cos(yaw), z - (-len / 2 + t * len) * Math.sin(yaw)];
+        const [rx, rz] = at(0.02);
+        const t = 0.62;
+        const [cx, cz] = at(t);
+        const top = y + l.cg[1] - bladeSection(t)[1] / 2;
+        return (
+          <group key={l.id}>
+            <group position={[rx, 0, rz]} rotation={[0, yaw, 0]}>
+              <Box s={[1.2, 0.2, 4.4]} m={M.greyLight} position={[0, 0.1, 0]} />
+              {[-1.6, 1.6].map((k) => (
+                <Box key={k} s={[0.9, y + 0.4, 0.3]} m={M.hookYellow} position={[0, (y + 0.4) / 2, k]} />
+              ))}
+            </group>
+            <group position={[cx, 0, cz]} rotation={[0, yaw, 0]}>
+              {[-0.9, 0.9].map((k) => (
+                <Box key={k} s={[0.25, top, 0.25]} m={M.hookYellow} position={[0, top / 2, k]} />
+              ))}
+              <Box s={[0.8, 0.25, 2.4]} m={M.rubber} position={[0, top - 0.12, 0]} />
+            </group>
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -380,6 +414,7 @@ export function Site() {
         <LiftPlan />
         <WindTower />
         {SPEC.model === 'zoomlion' && <TowerPlan />}
+        {SPEC.model === 'zoomlion' && <BladeStands />}
         <PowerLine />
         <Surroundings />
       </Bake>

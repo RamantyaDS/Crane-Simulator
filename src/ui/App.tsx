@@ -3,7 +3,7 @@ import { CAMS, KEYS_COMMON, KEYS_CRANE, KEYS_DRIVE, PAD_KEYS, bindKeys, toggleEn
 import { FULL, setQuality } from '../scene/Adaptive';
 import { Experience } from '../scene/Experience';
 import { chartTable, stopIndex } from '../sim/chart';
-import { LOWER_BOOST, attachRig, detachRig, hangLen, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
+import { LOWER_BOOST, attachRig, bladeError, boomInRotor, detachRig, hangLen, nacelleUp, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
 import { plan } from '../sim/rigging';
 import { RIGGING } from '../sim/site';
 import { BLOCKS, FLY, MODELS, SPEC, chooseModel, maxParts } from '../sim/spec';
@@ -272,7 +272,7 @@ function LoadPanel() {
       <h3>Rigging</h3>
       {cr.attached < 0 ? (
         <div className="rigs">
-          {RIGGING.map((r) => {
+          {RIGGING.filter((r) => ZL || r.id !== 'yoke').map((r) => {
             const p = plan(L.def, r);
             return (
               <button key={r.id} className={p.ok ? '' : 'bad'} onClick={() => attachRig(cr, r.id)} title={p.ok ? '' : p.problem}>
@@ -456,6 +456,10 @@ function hint() {
   const L = cr.loads[cr.target];
   if (cr.failed) return 'Kecelakaan. Tekan Mulai ulang (tab Tampilan).';
   if (cr.engine === 'off') return 'Hidupkan mesin (arah di N).';
+  if (L.def.bolt) {
+    const b = bladeHint(L);
+    if (b) return b;
+  }
   if (L.placed) return 'Beban terpasang. Lepas rigging, lalu pilih beban berikutnya.';
   if (cr.onTyres && cr.attached < 0 && cr.angle < 0.05 && useUI.getState().mode === 'drive' && Math.abs(cr.v) < 0.1 && cr.time > 20)
     return 'Boom bisa dinaikkan kapan saja: Tab → mode crane, tahan W. Tapi angkat beban hanya di atas outrigger (tab Setup).';
@@ -466,6 +470,19 @@ function hint() {
   if (L.state === 'rest' && !L.placed) return 'Hoist naik pelan (R) sampai beban terangkat. Pantau persentase RCL.';
   if (L.state === 'air') return `Swing pelan ke ${L.def.dest.label}, kendalikan ayunan, turunkan tepat di marka kuning.`;
   return '';
+}
+
+/** Single-blade installation: what the fitters on the hub tell the operator. */
+function bladeHint(L: (typeof cr.loads)[number]) {
+  if (cr.turbine) return 'Turbin WTG-07 berputar dan menyuplai listrik. Misi turbin selesai!';
+  if (cr.attached < 0 && cr.loads.every((l) => !l.def.bolt || l.placed) && boomInRotor(cr)) return 'Rotor lengkap! Swing atau naikkan boom keluar dari bidang putar rotor supaya rem rotor bisa dilepas.';
+  if (L.placed) return cr.attached >= 0 ? 'Bilah terbaut. Turunkan hook sedikit lalu Lepas rigging (tab Beban): hub berputar 120° untuk bilah berikutnya.' : 'Bilah terpasang. Pilih bilah berikutnya di tab Beban.';
+  if (!nacelleUp(cr)) return 'Pasang nacelle di puncak menara dulu, baru bilah rotor.';
+  if (L.state !== 'air') return '';
+  const e = bladeError(cr, L);
+  if (!e) return 'Tunggu: hub sedang diputar ke posisi jam 3.';
+  if (e.off > 15) return 'Naikkan bilah setinggi hub (±151 m) lalu bawa akarnya ke flange hub di depan nacelle.';
+  return `Akar bilah ${fmt(e.off)} m dari flange hub, sudut ${fmt((e.yaw * 180) / Math.PI)}°. Pelan-pelan: R/F naik-turun, W/S dan A/D geser, Z/X putar bilah. Masuk 60 cm & 5° = dibaut.`;
 }
 
 function Mission() {
