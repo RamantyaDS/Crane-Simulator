@@ -3,7 +3,7 @@ import { CAMS, KEYS_COMMON, KEYS_CRANE, KEYS_DRIVE, PAD_KEYS, bindKeys, toggleEn
 import { FULL, setQuality } from '../scene/Adaptive';
 import { Experience } from '../scene/Experience';
 import { chartTable, stopIndex } from '../sim/chart';
-import { attachRig, detachRig, hangLen, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
+import { LOWER_BOOST, attachRig, detachRig, hangLen, lockBoom, radius, setBeams, setBlock, setCounterweight, setDir, setFly, tipWorld, toggleSwingLock } from '../sim/crane';
 import { plan } from '../sim/rigging';
 import { RIGGING } from '../sim/site';
 import { BLOCKS, FLY, MODELS, SPEC, chooseModel, maxParts } from '../sim/spec';
@@ -229,7 +229,7 @@ function SetupPanel() {
       </select>
       <label className="slider">
         <span>
-          Jalur tali (parts of line) <b>{cr.parts}</b> · kapasitas tali {t(cr.parts * SPEC.ropeLimit)} · hook {fmt((SPEC.lineSpeed[0] * 60) / cr.parts)} m/menit
+          Jalur tali (parts of line) <b>{cr.parts}</b> · kapasitas tali {t(cr.parts * SPEC.ropeLimit)} · hook naik {fmt((SPEC.lineSpeed[0] * 60) / cr.parts)} / turun {fmt((SPEC.lineSpeed[0] * 60 * LOWER_BOOST) / cr.parts)} m/menit (Shift 2×)
         </span>
         <input type="range" min={1} max={maxParts(blk.sheaves)} step={1} value={cr.parts} onChange={(e) => setBlock(cr, cr.block, +e.target.value)} />
       </label>
