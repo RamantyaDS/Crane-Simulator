@@ -663,7 +663,7 @@ function Rope({ get }: { get: (a: THREE.Vector3, b: THREE.Vector3) => boolean })
   });
   return (
     <mesh ref={ref} material={M.rope}>
-      <cylinderGeometry args={[0.013, 0.013, 1, 5]} />
+      <cylinderGeometry args={SPEC.model === 'zoomlion' ? [0.02, 0.02, 1, 6] : [0.013, 0.013, 1, 5]} />
     </mesh>
   );
 }

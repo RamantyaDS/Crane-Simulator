@@ -492,22 +492,122 @@ function Destination() {
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-function Leg({ get }: { get: (a: THREE.Vector3, b: THREE.Vector3) => boolean }) {
-  const ref = useRef<THREE.Mesh>(null);
+/** Thickness of a sling leg for the fitted rigging (wire rope or chain grows with its working load limit). */
+function legRadius() {
+  const rig = RIGGING.find((r) => r.id === cr.rig);
+  return rig ? Math.min(0.05, 0.012 + (rig.wll / 100000) * 0.03) : 0.025;
+}
+const isChain = () => !!RIGGING.find((r) => r.id === cr.rig)?.name.includes('rantai');
+
+/** One sling leg: the rope (or chain) with a hard eye at the top and a bow shackle on the lifting point below. */
+function Leg({ get, shackle = true }: { get: (a: THREE.Vector3, b: THREE.Vector3) => boolean; shackle?: boolean }) {
+  const ref = useRef<THREE.Group>(null);
+  const rope = useRef<THREE.Mesh>(null);
+  const chain = useRef<THREE.Mesh>(null);
+  const eye = useRef<THREE.Group>(null);
+  const shk = useRef<THREE.Group>(null);
   const a = useMemo(() => new THREE.Vector3(), []);
   const b = useMemo(() => new THREE.Vector3(), []);
+  const d = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
-    const m = ref.current!;
-    m.visible = get(a, b);
-    if (!m.visible) return;
-    m.position.copy(a).add(b).multiplyScalar(0.5);
-    m.scale.set(1, a.distanceTo(b), 1);
-    m.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
+    const g = ref.current!;
+    g.visible = get(a, b);
+    if (!g.visible) return;
+    const r = legRadius();
+    const k = r / 0.025;
+    const len = a.distanceTo(b);
+    d.copy(a).sub(b).normalize(); // up the leg
+    g.position.copy(b);
+    g.quaternion.setFromUnitVectors(UP, d);
+    const ch = isChain();
+    for (const [m, on] of [
+      [rope.current!, !ch],
+      [chain.current!, ch],
+    ] as const) {
+      m.visible = on;
+      m.position.y = len / 2;
+      m.scale.set(k, Math.max(0.05, len - 0.25 * k), k);
+    }
+    eye.current!.position.y = len - 0.1 * k;
+    eye.current!.scale.setScalar(k);
+    shk.current!.visible = shackle;
+    shk.current!.scale.setScalar(k);
   });
   return (
-    <mesh ref={ref} material={M.sling}>
-      <cylinderGeometry args={[0.025, 0.025, 1, 6]} />
-    </mesh>
+    <group ref={ref}>
+      <mesh ref={rope} material={M.sling}>
+        <cylinderGeometry args={[0.025, 0.025, 1, 6]} />
+      </mesh>
+      <mesh ref={chain} material={M.chain}>
+        <cylinderGeometry args={[0.03, 0.03, 1, 4]} />
+      </mesh>
+      {/* hard eye (thimble) at the top */}
+      <group ref={eye}>
+        <mesh material={M.sling}>
+          <torusGeometry args={[0.1, 0.025, 6, 12]} />
+        </mesh>
+      </group>
+      {/* bow shackle: bow round the sling eye, pin through the load's lug */}
+      <group ref={shk}>
+        <mesh position={[0, 0.06, 0]} rotation={[0, 0, Math.PI]} material={M.hookYellow}>
+          <torusGeometry args={[0.07, 0.022, 6, 12, Math.PI]} />
+        </mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * 0.07, 0.03, 0]} material={M.hookYellow}>
+            <cylinderGeometry args={[0.022, 0.022, 0.07, 6]} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={M.chrome}>
+          <cylinderGeometry args={[0.025, 0.025, 0.2, 8]} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/** Master link on the hook and the lugs at the spreader ends. */
+function Hardware({ hook, ends }: { hook: () => THREE.Vector3 | null; ends: () => [THREE.Vector3, THREE.Vector3] | null }) {
+  const link = useRef<THREE.Group>(null);
+  const lugs = useRef<THREE.Group[]>([]);
+  useFrame(() => {
+    const h = hook();
+    const l = link.current!;
+    l.visible = !!h;
+    if (h) {
+      l.position.copy(h);
+      l.rotation.y = cr.heading + cr.slew;
+      l.scale.setScalar(legRadius() / 0.025);
+    }
+    const e = ends();
+    lugs.current.forEach((g, i) => {
+      g.visible = !!e;
+      if (e) {
+        g.position.copy(e[i]);
+        g.rotation.y = cr.attached >= 0 ? cr.loads[cr.attached].yaw : 0;
+      }
+    });
+  });
+  return (
+    <group>
+      <group ref={link}>
+        <mesh position={[0, 0.12, 0]} material={M.hookYellow} scale={[1, 1.5, 1]}>
+          <torusGeometry args={[0.12, 0.03, 8, 16]} />
+        </mesh>
+      </group>
+      {[0, 1].map((i) => (
+        <group key={i} ref={(el) => el && (lugs.current[i] = el)}>
+          <mesh position={[0, 0.16, 0]} material={M.hookYellow}>
+            <boxGeometry args={[0.04, 0.3, 0.25]} />
+          </mesh>
+          <mesh position={[0, -0.14, 0]} material={M.hookYellow}>
+            <boxGeometry args={[0.04, 0.25, 0.25]} />
+          </mesh>
+          <mesh rotation={[0, 0, Math.PI / 2]} material={M.steelDark}>
+            <boxGeometry args={[0.36, 0.36, 0.08]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
   );
 }
 
@@ -549,8 +649,16 @@ function Rigging() {
   return (
     <group>
       <mesh ref={bar} material={M.hookYellow}>
-        <cylinderGeometry args={[0.12, 0.12, 1, 10]} />
+        <cylinderGeometry args={[0.14, 0.14, 1, 12]} />
       </mesh>
+      <Hardware
+        hook={() => {
+          if (cr.attached < 0 || !cr.rigPlan) return null;
+          blockWorld(hook);
+          return hook.set(hook.x, hook.y - 1.1, hook.z);
+        }}
+        ends={() => (spreaderEnds() ? [tmp.e0, tmp.e1] : null)}
+      />
       {/* top legs: hook to the points (bridle) or to the spreader ends */}
       {legs.map((i) => (
         <Leg
