@@ -364,6 +364,10 @@ function Upper() {
         <RB key={s} s={[0.3, 2.4, 2.6]} r={0.05} m={M.zlGreen} position={[s * 1.35, P.y - 0.9, P.z]} />
       ))}
       <Cyl r={0.3} l={3.1} axis="x" m={M.steel} position={[0, P.y, P.z]} />
+      {/* luffing cylinder trunnion brackets at the front of the upper */}
+      {[-1.4, -0.3, 0.3, 1.4].map((x) => (
+        <RB key={x} s={[0.22, 1.1, 1.2]} r={0.04} m={M.zlGunDark} position={[x, DECK + 1.25, 2.6]} />
+      ))}
       {/* twin main winches behind the boom foot */}
       {[-5.9, -7.5].map((z) => (
         <group key={z} position={[0, DECK + 2.0, z]}>
@@ -596,6 +600,7 @@ function Boom() {
   const parts = useRef<THREE.Group[]>([]);
   const luff = useRef<THREE.Group>(null);
   const rods = useRef<THREE.Mesh[]>([]);
+  const eyes = useRef<THREE.Group>(null);
   const guys = useRef<THREE.Group[]>([]);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3() }), []);
   const masts = useRef<THREE.Group[]>([]);
@@ -620,7 +625,7 @@ function Boom() {
     // superlift masts: folded forward on top of the boom for travel, raised into the Y once the boom lifts
     const up = THREE.MathUtils.smoothstep(cr.angle, 0.04, 0.2);
     tmp.c.set(0, 1.0, headZ);
-    tmp.b.set(0, SEC[0].h / 2, -0.3);
+    tmp.b.set(0, SEC[0].h / 2 + 0.75, -0.2); // the guy winch drum near the foot
     tips.forEach((t, k) => {
       const s = k ? -1 : 1;
       const sa = Math.sin(MAST.alpha);
@@ -681,6 +686,7 @@ function Boom() {
       r.scale.y = Math.max(0.1, d - 7.4);
       r.position.z = 7.4 + (d - 7.4) / 2;
     }
+    eyes.current!.position.z = d;
   });
   const windLen = [51, 30, 30];
   return (
@@ -700,7 +706,16 @@ function Boom() {
             </mesh>
           </group>
         ))}
+        {/* trunnion pin through the barrel ends at the upper */}
         <Cyl r={0.35} l={2.6} axis="x" m={M.steel} />
+        {/* rod eyes, on the pin of the lug under the boom */}
+        <group ref={eyes}>
+          {[-0.85, 0.85].map((x) => (
+            <mesh key={x} position={[x, 0, -0.15]} material={M.rod}>
+              <boxGeometry args={[0.5, 0.75, 0.6]} />
+            </mesh>
+          ))}
+        </group>
       </group>
       {[0, 1].map((i) => (
         <mesh key={i} ref={(el) => el && (leads.current[i] = el)} material={M.rope}>
@@ -713,6 +728,15 @@ function Boom() {
             <cylinderGeometry args={[0.022, 0.022, 1, 6]} />
           </mesh>
         ))}
+        {/* luffing cylinder lug under the base section (rod eyes pin here), guy-rope winch on top near the foot */}
+        <Bake>
+          {[-1.35, -0.35, 0.35, 1.35].map((x) => (
+            <RB key={x} s={[0.22, 0.9, 1.8]} r={0.04} m={M.zlGreenDark} position={[x, -1.65, 14]} />
+          ))}
+          <Cyl r={0.2} l={2.9} axis="x" m={M.steel} position={[0, -1.9, 14]} />
+          <RB s={[1.8, 0.7, 1.6]} r={0.06} m={M.zlGunDark} position={[0, SEC[0].h / 2 + 0.3, -0.2]} />
+          <Cyl r={0.45} l={1.5} axis="x" m={M.rope} position={[0, SEC[0].h / 2 + 0.75, -0.2]} />
+        </Bake>
         {SEC.map((_, i) => (
           <group key={i} ref={(el) => el && (secs.current[i] = el)}>
             <Section i={i} />
