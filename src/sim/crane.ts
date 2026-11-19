@@ -264,6 +264,8 @@ export function create(): Crane {
 export const LOWER_BOOST = 3;
 /** The SANY's heavy reeving (up to 65 parts) lowers twice as fast again. */
 export const lowerBoost = () => (SPEC.crawler ? 2 * LOWER_BOOST : LOWER_BOOST);
+/** The SANY also hoists faster than real (upending a vessel on 49 parts took minutes). */
+export const raiseBoost = () => (SPEC.crawler ? 3 : 1);
 
 // ---------- geometry ----------
 
@@ -832,7 +834,7 @@ function hookAndLoad(c: Crane, dt: number) {
     if (!c.msg) say(c, 'Winch tidak kuat menarik: tambah jumlah jalur tali (parts of line).');
   }
   const lineV = SPEC.lineSpeed[c.highSpeed ? 1 : 0] * f * (1 - 0.35 * Math.min(1, c.tension / Math.max(1, pull)));
-  const dDrum = -hv * lineV * (hv < 0 ? lowerBoost() : 1) * dt; // paying out = lowering (sped up for playability)
+  const dDrum = -hv * lineV * (hv < 0 ? lowerBoost() : raiseBoost()) * dt; // paying out = lowering (sped up for playability)
   if (hv < 0 && c.drum + dDrum >= SPEC.ropeTotal - 0.01 && !c.msg) say(c, `Tali di drum habis (${SPEC.ropeTotal} m dibagi ${parts} jalur): hook tidak bisa turun lagi. Kurangi jalur tali.`);
   c.drum = clamp(c.drum + dDrum, ropeAlong(c) + 0.3 * parts, SPEC.ropeTotal);
   const prevRope = c.ropeLen;

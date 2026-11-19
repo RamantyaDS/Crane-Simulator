@@ -1,4 +1,4 @@
-import { Environment, Lightformer, Sky } from '@react-three/drei';
+import { Environment, Lightformer, Sky, Stars } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Bloom, EffectComposer, N8AO } from '@react-three/postprocessing';
 import { useEffect, useMemo, useRef } from 'react';
@@ -8,9 +8,10 @@ import { radius, tipWorld } from '../sim/crane';
 import { SPEC } from '../sim/spec';
 import { playEvent, updateSound } from '../sound';
 import { advance, cr, onEvent, useUI } from '../store';
-import { FULL, MAX_DPR, SHADOW } from './Adaptive';
+import { FULL, MAX_DPR, NIGHT, SHADOW } from './Adaptive';
 import { CraneModel, craneObj } from './Crane';
 import { Fx } from './Fx';
+import { CraneLights } from './Lights';
 import { Loads } from './Loads';
 import { Site } from './Site';
 import { SanyModel } from './Sany';
@@ -57,8 +58,8 @@ function Sun() {
   return (
     <directionalLight
       ref={light}
-      intensity={3.0}
-      color="#fff1da"
+      intensity={NIGHT ? 0.5 : 3.0}
+      color={NIGHT ? '#9db4e0' : '#fff1da'}
       castShadow
       shadow-mapSize={[SHADOW, SHADOW]}
       shadow-camera-left={BIG ? -80 : -40}
@@ -187,12 +188,16 @@ function CameraRig() {
 export function Experience() {
   return (
     <Canvas shadows dpr={[1, MAX_DPR]} camera={{ position: [50, 30, -80], fov: 50, near: 0.2, far: 1200 }} gl={{ antialias: true }}>
-      <color attach="background" args={['#bcd3e6']} />
-      <fog attach="fog" args={['#c7d4dd', BIG ? 220 : 120, BIG ? 900 : 520]} />
-      <Sky sunPosition={[40, 26, 25]} turbidity={3.5} rayleigh={0.9} mieCoefficient={0.004} mieDirectionalG={0.8} />
-      <hemisphereLight args={['#dbe9ff', '#6b5f4c', 0.85]} />
+      <color attach="background" args={[NIGHT ? '#070c16' : '#bcd3e6']} />
+      <fog attach="fog" args={[NIGHT ? '#0a111d' : '#c7d4dd', BIG ? 220 : 120, BIG ? 900 : 520]} />
+      {NIGHT ? (
+        <Stars radius={700} depth={80} count={2500} factor={5} saturation={0} fade speed={0.3} />
+      ) : (
+        <Sky sunPosition={[40, 26, 25]} turbidity={3.5} rayleigh={0.9} mieCoefficient={0.004} mieDirectionalG={0.8} />
+      )}
+      <hemisphereLight args={NIGHT ? ['#4a5f8c', '#1c1914', 0.6] : ['#dbe9ff', '#6b5f4c', 0.85]} />
       <Sun />
-      <Environment resolution={128} frames={1} environmentIntensity={0.7}>
+      <Environment resolution={128} frames={1} environmentIntensity={NIGHT ? 0.12 : 0.7}>
         <Lightformer form="rect" intensity={1.6} color="#dceaf7" scale={[80, 30, 1]} position={[0, 25, 0]} rotation={[Math.PI / 2, 0, 0]} />
         <Lightformer form="rect" intensity={1.0} color="#bfd3e6" scale={[60, 8, 1]} position={[0, 5, -40]} />
         <Lightformer form="circle" intensity={6} color="#fff0d6" scale={8} position={[40, 26, 25]} target={[0, 0, 0]} />
@@ -201,6 +206,7 @@ export function Experience() {
       <Site />
       <Loads />
       {SPEC.crawler ? <SanyModel /> : BIG ? <ZoomlionModel /> : <CraneModel />}
+      <CraneLights />
       <RadiusRing />
       <Fx />
       <CameraRig />

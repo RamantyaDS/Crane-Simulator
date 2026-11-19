@@ -38,7 +38,7 @@ const MAST = { z: -1.6, len: 72, elev: (100 * Math.PI) / 180, footX: TWIN ? 5.0 
 // jib struts at the boom head (boom frame): the rear one leans back, the front one forward over the jib
 const STRUT_R = new THREE.Vector3(0, 15 * Math.sin(1.95), 15 * Math.cos(1.95));
 const STRUT_F = new THREE.Vector3(0, 15 * Math.sin(1.15), 15 * Math.cos(1.15));
-const mastTop = (s: number) => new THREE.Vector3(s * MAST.topX, SPEC.pin.y + MAST.len * Math.sin(MAST.elev), MAST.z + MAST.len * Math.cos(MAST.elev));
+export const mastTop = (s: number) => new THREE.Vector3(s * MAST.topX, SPEC.pin.y + MAST.len * Math.sin(MAST.elev), MAST.z + MAST.len * Math.cos(MAST.elev));
 const TRAY = { z: SPEC.cwArm, y: 2.2, w: 16, d: 10, hang: 7 };
 
 // ---------- geometry helpers ----------

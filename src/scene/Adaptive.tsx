@@ -22,3 +22,22 @@ export function setQuality(full: boolean) {
   }
   location.reload();
 }
+
+// Night: dark sky, moonlight, the crane's flood lights shine on the hook. Saved, applied by reloading (like quality).
+const NKEY = 'crane-night';
+function readNight() {
+  try {
+    return localStorage.getItem(NKEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export const NIGHT = readNight();
+export function setNight(on: boolean) {
+  try {
+    localStorage.setItem(NKEY, on ? '1' : '0');
+  } catch {
+    /* private mode */
+  }
+  location.reload();
+}
