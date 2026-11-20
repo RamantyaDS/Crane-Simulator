@@ -711,6 +711,7 @@ function nameOf(id = '') {
   if (id === 'annex') return 'gedung annex';
   if (id === 'mezzdeck') return 'lantai mezzanine';
   if (id === 'truk') return 'truk Traknus';
+  if (id.startsWith('worker')) return 'pekerja';
   return id;
 }
 

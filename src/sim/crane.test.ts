@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { rated } from './chart';
-import { attachRig, create, hangLen, lockBoom, radius, resetHook, setBlock, setDir, startEngine, step, tipWorld, type Crane } from './crane';
+import { EMBED } from '../embed';
+import { attachRig, create, detachRig, hangLen, lockBoom, radius, resetHook, setBlock, setDir, startEngine, step, tipWorld, type Crane } from './crane';
 import { plan } from './rigging';
-import { LOADS, PRESS_SPOT, RIGGING } from './site';
+import { LOADS, PRESS_SPOT, RIGGING, surfaceAt } from './site';
 import { SPEC } from './spec';
 
 const run = (c: Crane, s: number, each?: (c: Crane) => void) => {
@@ -211,3 +212,43 @@ describe('RTC-80160 crane', () => {
   });
 });
 
+
+describe('Traknus World truck deck', () => {
+  it('lifts the genset off a truck deck (a world support) and sets it back level on the deck timbers', () => {
+    const c = ready();
+    onOutriggers(c);
+    c.slew = Math.PI / 2;
+    setRadius(c, 12.88, 7);
+    resetHook(c);
+    run(c, 3);
+    const g = c.loads.findIndex((l) => l.def.id === 'genset');
+    c.target = g;
+    const L = c.loads[g];
+    const p = plan(L.def, RIGGING.find((r) => r.id === 'sp6')!);
+    // the truck's deck and two timbers under the ends of the set, the set on them, its lifting centre under the hook
+    Object.assign(L, { x: c.hook.x - p.centre[0], z: c.hook.z - p.centre[2], y: 1.58, yaw: 0, state: 'rest' });
+    const s = (x: number, hx: number, y0: number, y1: number) => ({ id: 'truk', x, z: L.z, hx, hz: 1.2, yaw: 0, y0, y1 });
+    EMBED.supports.push(s(L.x, 3.15, 1.18, 1.38), s(L.x - 2.6, 0.15, 1.38, 1.58), s(L.x + 2.6, 0.15, 1.38, 1.58));
+    try {
+      expect(surfaceAt(L.x + 2.6, L.z)).toBeCloseTo(1.58);
+      expect(surfaceAt(L.x, L.z)).toBeCloseTo(1.38);
+      // lower the hook to the rigger, sling it, hoist clear of the deck
+      run(c, 40, (c) => (c.hoistLever = c.hook.y - (L.y + p.centre[1]) > p.height + 1 ? -1 : 0));
+      attachRig(c, 'sp6');
+      expect(c.rig).toBe('sp6');
+      run(c, 40, (c) => (c.hoistLever = L.y < 3.2 ? 1 : 0));
+      expect(L.state).toBe('air');
+      expect(L.y).toBeGreaterThan(3);
+      // and back down onto the timbers: it lands level, nothing falls
+      run(c, 60, (c) => (c.hoistLever = L.state === 'air' || c.take > 0.05 ? -1 : 0));
+      expect(L.state).toBe('rest');
+      expect(L.y).toBeCloseTo(1.58, 1);
+      expect(L.damage).toBe(0);
+      expect(c.failed).toBe('');
+      detachRig(c);
+      expect(c.attached).toBe(-1);
+    } finally {
+      EMBED.supports.length = 0;
+    }
+  });
+});

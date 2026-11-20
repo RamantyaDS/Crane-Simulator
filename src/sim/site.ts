@@ -2,6 +2,7 @@
 // a transformer bay, a tank foundation and the main transformer pad; hard compacted ground everywhere, an excavation and
 // a 20 kV overhead line along the east edge. The loads wait in the laydown yard; each has a marked destination.
 // World axes: x east, z north, y up, metres.
+import { EMBED } from '../embed';
 import { inside, type Obb } from './geom';
 import { SPEC, type ModelId } from './spec';
 
@@ -76,6 +77,7 @@ export function surfaceAt(x: number, z: number) {
   let h = inExcavation(x, z) ? -EXCAVATION.depth : 0;
   for (const s of SURFACES) if (inside(s.b, x, z)) h = Math.max(h, s.y);
   for (const f of FOUNDATIONS) if (inside(f.b, x, z)) h = Math.max(h, f.y);
+  for (const s of EMBED.supports) if (inside(s, x, z)) h = Math.max(h, s.y1);
   return h;
 }
 
