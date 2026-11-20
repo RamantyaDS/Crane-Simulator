@@ -1,6 +1,7 @@
 // The factory construction site drawn from sim/site.ts: hard compacted yard with the excavation, the
 // half-built steel frame with its mezzanine and part of the roof, the annex, genset house, transformer bay, the
 // foundations and timbers, the main transformer lift plan marking, the 20 kV line, site cabins, fence and a tree line.
+import { EMBED } from '../embed';
 import { Text } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
@@ -57,7 +58,7 @@ function Ground() {
         <meshStandardMaterial map={gravel} roughness={0.95} />
       </mesh>
       {/* fields beyond the yard: the 4 000 t crane's camera sees much farther */}
-      {SPEC.bigView && (
+      {SPEC.bigView && !EMBED.on && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
           <planeGeometry args={[2400, 2400]} />
           <meshStandardMaterial color="#8a8f6a" roughness={1} />

@@ -185,6 +185,25 @@ function CameraRig() {
   return null;
 }
 
+/**
+ * The site, the loads and the crane, without sky, lights or post effects. The Traknus World mounts this as one zone;
+ * `drive` is false there while the player walks around (the world moves the camera, the keys stay off).
+ */
+export function ZoneContent({ drive = true }: { drive?: boolean }) {
+  return (
+    <>
+      <Site />
+      <Loads />
+      {SPEC.crawler ? <SanyModel /> : BIG ? <ZoomlionModel /> : <CraneModel />}
+      <CraneLights />
+      <RadiusRing />
+      <Fx />
+      {drive && <CameraRig />}
+      <Driver />
+    </>
+  );
+}
+
 export function Experience() {
   return (
     <Canvas shadows dpr={[1, MAX_DPR]} camera={{ position: [50, 30, -80], fov: 50, near: 0.2, far: 1200 }} gl={{ antialias: true }}>
@@ -203,14 +222,7 @@ export function Experience() {
         <Lightformer form="circle" intensity={6} color="#fff0d6" scale={8} position={[40, 26, 25]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={0.35} color="#6b6458" scale={[120, 120, 1]} position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]} />
       </Environment>
-      <Site />
-      <Loads />
-      {SPEC.crawler ? <SanyModel /> : BIG ? <ZoomlionModel /> : <CraneModel />}
-      <CraneLights />
-      <RadiusRing />
-      <Fx />
-      <CameraRig />
-      <Driver />
+      <ZoneContent />
       {FULL ? (
         <EffectComposer>
           <N8AO aoRadius={1.4} intensity={2} distanceFalloff={0.6} halfRes quality="performance" aoSamples={10} denoiseSamples={4} />

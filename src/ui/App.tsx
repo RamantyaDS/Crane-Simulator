@@ -726,12 +726,22 @@ function Result() {
 
 export function App() {
   const started = useUI((s) => s.started);
-  const panel = useUI((s) => s.panel);
-  const mode = useUI((s) => s.mode);
   useEffect(() => bindKeys(), []);
   return (
     <>
       <Experience />
+      <Hud />
+      {!started && <Intro />}
+    </>
+  );
+}
+
+/** Everything on screen over the 3D view; the Traknus World shows this while the player operates the crane. */
+export function Hud() {
+  const panel = useUI((s) => s.panel);
+  const mode = useUI((s) => s.mode);
+  return (
+    <>
       <header className="brand">
         <button className="menu" onClick={() => useUI.getState().set({ panel: !panel })} aria-label={panel ? 'Sembunyikan panel' : 'Tampilkan panel'}>
           {panel ? '◀' : '☰'}
@@ -751,46 +761,49 @@ export function App() {
       <Help />
       <Touch />
       <Result />
-      {!started && (
-        <div className="intro">
-          <div>
-            <h1>Simulator Crane Traknus</h1>
-            <ModelPicker />
-            {SANY ? (
-              <p>
-                Crawler crane SANY SCC45000A: {SPEC.twin ? 'dua boom lattice berdampingan 96 m + equalizer, 4 500 t' : 'satu boom lattice 96 m, 2 000 t'}, superlift dengan tray counterweight sampai{' '}
-                {fmt(SPEC.counterweights[SPEC.counterweights.length - 1], 0)} t. Misi di plot kilang selatan pagar: upending reaktor hydrocracker 3 000 t (boom ganda) dan kolom distilasi 1 500 t dari SPMT, lalu set di pondasi.
-                SANY tidak menerbitkan load chart: kapasitas di sini PERKIRAAN.
-              </p>
-            ) : ZL ? (
-              <p>
-                All-terrain crane 4 000 ton, 10 gandar, boom utama 7 seksi 19,8–95,4 m, superlift Y, boom wind 51–111 m (tinggi hook sampai ±206 m). Beban terbesar: nacelle
-                turbin angin 150 t ke puncak menara 148,5 m. Zoomlion tidak menerbitkan load chart: kapasitas di sini PERKIRAAN dari momen beban yang dipublikasikan.
-              </p>
-            ) : (
-              <p>
-                Rough terrain crane 145 ton (Cummins 345 hp, boom 6 seksi pin & latch 12,9–59,5 m, fly 9,4/16,8 m) di proyek pabrik. Pasang genset, trafo, chiller, pelat
-                precast, balok baja, tangki, sampai trafo daya 100 ton yang memakai 98% kapasitas, memakai load chart resmi Link-Belt.
-              </p>
-            )}
-            <ol>
-              <li>Jalankan crane ke dekat beban dan tujuannya (mode jalan, empat mode setir).</li>
-              <li>Outrigger penuh, matras bila perlu, auto-level. Pilih counterweight, hook block dan jalur tali.</li>
-              <li>Mode crane: hook di atas beban, pilih rigging, angkat, swing, letakkan tepat di marka. Pantau RCL.</li>
-            </ol>
-            <p className="dim">Keyboard + mouse, gamepad, atau layar sentuh. Mode ringan aktif (bisa diganti di tab Tampilan).</p>
-            <button
-              className="big ok"
-              onClick={() => {
-                void ensureAudio();
-                useUI.getState().set({ started: true });
-              }}
-            >
-              Mulai (suara aktif)
-            </button>
-          </div>
-        </div>
-      )}
     </>
+  );
+}
+
+function Intro() {
+  return (
+    <div className="intro">
+      <div>
+        <h1>Simulator Crane Traknus</h1>
+        <ModelPicker />
+        {SANY ? (
+          <p>
+            Crawler crane SANY SCC45000A: {SPEC.twin ? 'dua boom lattice berdampingan 96 m + equalizer, 4 500 t' : 'satu boom lattice 96 m, 2 000 t'}, superlift dengan tray counterweight sampai{' '}
+            {fmt(SPEC.counterweights[SPEC.counterweights.length - 1], 0)} t. Misi di plot kilang selatan pagar: upending reaktor hydrocracker 3 000 t (boom ganda) dan kolom distilasi 1 500 t dari SPMT, lalu set di pondasi.
+            SANY tidak menerbitkan load chart: kapasitas di sini PERKIRAAN.
+          </p>
+        ) : ZL ? (
+          <p>
+            All-terrain crane 4 000 ton, 10 gandar, boom utama 7 seksi 19,8–95,4 m, superlift Y, boom wind 51–111 m (tinggi hook sampai ±206 m). Beban terbesar: nacelle
+            turbin angin 150 t ke puncak menara 148,5 m. Zoomlion tidak menerbitkan load chart: kapasitas di sini PERKIRAAN dari momen beban yang dipublikasikan.
+          </p>
+        ) : (
+          <p>
+            Rough terrain crane 145 ton (Cummins 345 hp, boom 6 seksi pin & latch 12,9–59,5 m, fly 9,4/16,8 m) di proyek pabrik. Pasang genset, trafo, chiller, pelat
+            precast, balok baja, tangki, sampai trafo daya 100 ton yang memakai 98% kapasitas, memakai load chart resmi Link-Belt.
+          </p>
+        )}
+        <ol>
+          <li>Jalankan crane ke dekat beban dan tujuannya (mode jalan, empat mode setir).</li>
+          <li>Outrigger penuh, matras bila perlu, auto-level. Pilih counterweight, hook block dan jalur tali.</li>
+          <li>Mode crane: hook di atas beban, pilih rigging, angkat, swing, letakkan tepat di marka. Pantau RCL.</li>
+        </ol>
+        <p className="dim">Keyboard + mouse, gamepad, atau layar sentuh. Mode ringan aktif (bisa diganti di tab Tampilan).</p>
+        <button
+          className="big ok"
+          onClick={() => {
+            void ensureAudio();
+            useUI.getState().set({ started: true });
+          }}
+        >
+          Mulai (suara aktif)
+        </button>
+      </div>
+    </div>
   );
 }
