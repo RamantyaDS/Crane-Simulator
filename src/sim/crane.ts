@@ -14,6 +14,7 @@ import { rated, stopIndex, type Rating, type Support } from './chart';
 import { clamp, inside, overlaps, toLocal, toWorld, type Obb } from './geom';
 import { plan, type RigPlan } from './rigging';
 import { BEARING, LOADS, MIN_APPROACH, OBSTACLES, POWERLINE, RIGGING, START, START_SANY, START_ZL, forModel, groundAt, inExcavation, surfaceAt, type LoadDef } from './site';
+import { EMBED } from '../embed';
 import { BLOCKS, FLY, SPEC, maxParts, maxTorque, type BlockId } from './spec';
 
 const G = 9.81;
@@ -673,9 +674,10 @@ function craneHits(c: Crane): string | null {
   add(-SPEC.width / 2, -SPEC.carrierLen / 2, SPEC.width / 2, SPEC.carrierLen / 2, 0.3, SPEC.deckY + 1.2, 'c', 'carrier');
   const w = SPEC.cwBox;
   add(-w.x, SPEC.cwArm - w.z, w.x, SPEC.cwArm + w.z, w.y0, w.y1, 'u', 'counterweight');
-  for (const b of OBSTACLES) for (const m of boxes) if (overlaps(m, b)) return nameOf(b.id);
+  const solid = EMBED.solids.length ? [...OBSTACLES, ...EMBED.solids] : OBSTACLES;
+  for (const b of solid) for (const m of boxes) if (overlaps(m, b)) return nameOf(b.id);
   // the boom: points along it
-  for (const p of boomPoints(c)) for (const b of OBSTACLES) if (inside(b, p.x, p.z, 0.4) && p.y > b.y0 && p.y < b.y1 + 0.4) return nameOf(b.id);
+  for (const p of boomPoints(c)) for (const b of solid) if (inside(b, p.x, p.z, 0.4) && p.y > b.y0 && p.y < b.y1 + 0.4) return nameOf(b.id);
   // nor through the loads (the one on the hook and blades turning with the hub aside)
   for (const L of c.loads) {
     if (c.loads[c.attached] === L || (L.def.bolt && L.placed)) continue;
@@ -708,6 +710,7 @@ function nameOf(id = '') {
   if (id.startsWith('cabin')) return 'kabin proyek';
   if (id === 'annex') return 'gedung annex';
   if (id === 'mezzdeck') return 'lantai mezzanine';
+  if (id === 'truk') return 'truk Traknus';
   return id;
 }
 
@@ -884,7 +887,7 @@ function hookAndLoad(c: Crane, dt: number) {
   // collisions of a hanging load with the site and the crane
   if (air) {
     const box = loadBox(L!, px, py - L!.def.cg[1], pz);
-    const hit = OBSTACLES.find((o) => overlaps(box, o)) ?? null;
+    const hit = OBSTACLES.find((o) => overlaps(box, o)) ?? EMBED.solids.find((o) => overlaps(box, o)) ?? null;
     const other = c.loads.find((o) => o !== L && !(o.def.bolt && o.placed) && overlaps(box, loadBox(o, o.x, o.y, o.z)));
     if (hit || other) {
       const sp = Math.hypot(h.vx, h.vy, h.vz);
